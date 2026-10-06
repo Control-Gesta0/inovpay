@@ -1,6 +1,8 @@
 # InovPay · Diagnóstico do GHL e do atendimento no WhatsApp
 
 **Data:** 06/10/2026 · **Fonte:** API do GoHighLevel ao vivo (location `MCpYTxCMOUCftkHlGyOB`), 151 conversas e 3.719 mensagens de 21/07 a 06/10, documento "Funil de Suporte · WhatsApp Bot" (ago/2026) e o site inovpay.com.br.
+> **Atualização (06/10):** o escopo foi restrito a substituir o que a IA do GHL e a automação do bot fazem hoje. As seções 8 a 11 abaixo ficam como referência; o escopo vigente está em [`02-escopo-substituicao.md`](02-escopo-substituicao.md).
+
 **Estado do projeto:** `DIAGNOSTICANDO`. CRM confirmado (GoHighLevel). A estrutura está mapeada. O desenho depende das respostas da seção 11.
 
 > Os IDs da seção 2 são uma **foto de 06/10**. Na construção eles são consultados de novo, ao vivo, porque o GHL aceita gravação em campo apagado sem dar erro.
