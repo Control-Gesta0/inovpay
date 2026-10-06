@@ -7,7 +7,7 @@ Agente da InovPay no WhatsApp que substitui a automação "1- Suporte - WhatsApp
 | [docs/01-diagnostico-ghl.md](docs/01-diagnostico-ghl.md) | Análise da conta GHL, das 151 conversas, do bot e da IA atual, catálogo extraído e riscos |
 | [docs/02-escopo-substituicao.md](docs/02-escopo-substituicao.md) | **Escopo vigente:** o que o bot e a IA do GHL fazem, como o agente faz cada função, decisões D1 a D7 e o exame de aceite |
 
-**Estado:** `CONSTRUINDO`. Código pronto, `npm test` verde. Falta a chave da OpenAI para rodar o exame (`npm run evals`) e publicar.
+**Estado:** `PROVANDO`. `npm test` verde, exame **42/42** (14 cenários × 3 rodadas, 06/10/2026) e deploy em https://inovpay-ia.vercel.app. Falta o teste de ponta a ponta com número real (precisa do workflow no GHL e do número de teste).
 
 ## Como funciona
 
@@ -21,10 +21,13 @@ Lead manda mensagem no WhatsApp
       4. lê a conversa no GHL a partir do último reset (nota interna fica de fora; áudio e imagem viram texto)
       5. alguém da equipe respondeu nas últimas 6h? a IA não atropela
       6. fora do horário (seg a sex, 9h às 18h)? manda o aviso de horário, uma vez, e segue a triagem
-      7. GPT + ferramentas: define se é cliente, grava CPF/CNPJ validado, anota, passa para a equipe
-      8. travas em código: sem taxa, sem preço, sem senha, sem travessão, uma pergunta por vez,
-         sem "em instantes" fora do horário
-      9. envia pelo GHL e registra no diário
+      7. código decide o que é determinístico: cliente ou não (texto explícito ou resposta à pergunta),
+         resposta do roteiro comercial, próximo passo, dados mínimos de cada passagem
+      8. GPT + ferramentas: grava CPF/CNPJ validado, anota, passa para a equipe
+      9. travas em código: sem taxa, sem preço, sem senha, sem travessão, uma pergunta por vez,
+         sem "em instantes" fora do horário, sem prometer passagem sem passar, sem pular pergunta
+         do roteiro, sem ignorar pergunta de taxa (as que pedem ação tentam de novo COM ferramentas)
+     10. envia pelo GHL e registra no diário
 ```
 
 **Passagem para a equipe** (`passar_para_humano`): nota interna com resumo e dados coletados, tag `atendimento-humano`, tira a tag `ia` e marca a conversa como não lida. A IA para de responder esse contato.
@@ -48,7 +51,7 @@ Veja `.env.example`. Nunca commitar valores: este repositório é público.
 ## Provas
 
 - `npm test`: CPF/CNPJ (inclusive o CNPJ alfanumérico), travas, horário, reset, nota da passagem, webhook.
-- `npm run evals`: 14 cenários do escopo (seção 5 do documento 02), com juiz. Só sobe com todos aprovados.
+- `npm run evals`: 14 cenários do escopo (seção 5 do documento 02), com juiz. Só sobe com todos aprovados. Último resultado: 42/42 com `EVAL_REPS=3`.
 - `npm run typecheck`.
 
 ## Configuração no GHL (feita no painel, a API não cria workflow)

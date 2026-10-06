@@ -84,6 +84,10 @@ Responder taxa ou preço da máquina, criar ou mover oportunidade, agendar reuni
 
 ---
 
+### 2.3 · Roteiro atualizado pela InovPay (06/10)
+
+A InovPay mandou o roteiro com o FAQ revisto. Mudaram só os caminhos **no app**: split (Gestão de Recebíveis ➝ Split ➝ Adicionar Split), beneficiário (… ➝ Split ➝ Adicionar Beneficiário), comprovante do split (… ➝ Split ➝ Split de Recebíveis ➝ Ver Todos) e boleto (… ➝ Split ➝ Adicionar Boleto). O documento ficou com duas seções de boleto; vale a do fim, que segue o menu novo. Pendente: a InovPay confirmar e tirar a seção antiga.
+
 ## 3 · O que sai e o que fica no GHL
 
 | Sai (na virada, com autorização da InovPay) | Fica ou entra |

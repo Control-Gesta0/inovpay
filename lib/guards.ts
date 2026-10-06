@@ -21,6 +21,12 @@ export const REGRAS: Regra[] = [
 /** Fora do horário a IA não promete atendimento imediato (a IA nativa prometia "em instantes" num domingo). */
 export const REGRA_FORA_DO_HORARIO: Regra = { regra: 'prometeu atendimento imediato fora do horário', re: /em instantes|agora mesmo|j[aá] j[aá]|daqui a pouco|logo mais|imediatamente|em alguns minutos|rapidinho (algu[eé]m|o time|a equipe)/i }
 
+/**
+ * "Vou encaminhar" sem ter chamado passar_para_humano = promessa que mente (a IA antiga fazia isso:
+ * "vou te conectar com o time" e nada mudava no CRM). Só vale quando sabemos que NÃO houve passagem.
+ */
+export const REGRA_PROMESSA_SEM_PASSAGEM: Regra = { regra: 'prometeu passagem sem passar', re: /\b(vou|j[aá] vou|vou te|vou j[aá]) (encaminhar|passar (seu|sua|o seu|a sua|isso|essa|esse|pra|para|pro|voc[eê])|transferir|conectar)|\b(encaminhei|transferi|j[aá] passei)\b|encaminhar (pra|para) (an[aá]lise|a equipe|o time)|\b(algu[eé]m|a equipe|o time|nossa equipe|nosso time)( da equipe| do time)? (continua|vai continuar|te chama|vai te chamar|te responde|vai te responder|retorna|vai retornar)|\b(vou deixar|deixei|vou registrar|registrei|fica) (isso |tudo |seu pedido |sua solicita[cç][aã]o )?registrad[oa]|\bregistrei\b/i }
+
 /** "R$ 1.200,00" → 1200 · "1,65%" → 1.65 · "350 reais" → 350. null se não houver número. */
 export function numeroBR(s: string): number | null {
   let t = (s.match(/\d[\d.,]*/) || [''])[0].replace(/[.,]$/, '')
@@ -37,9 +43,11 @@ const numerosDo = (texto: string) => new Set((texto.match(/\d[\d.,]*/g) || []).m
  * `textoLead`: o que a pessoa escreveu. Valor que ELA disse (ex.: "venda de 350 reais")
  * pode ser repetido na confirmação: a trava de valor/taxa barra só número que veio da IA.
  */
-export function checkReply(text: string, opts: { foraDoHorario?: boolean; textoLead?: string } = {}): Violation[] {
+export function checkReply(text: string, opts: { foraDoHorario?: boolean; textoLead?: string; handoff?: boolean; tipoDesconhecido?: boolean } = {}): Violation[] {
   const out: Violation[] = []
-  const regras = opts.foraDoHorario ? [...REGRAS, REGRA_FORA_DO_HORARIO] : REGRAS
+  // Ainda não se sabe se é cliente e a resposta não pergunta: a triagem toda depende disso
+  if (opts.tipoDesconhecido && !opts.handoff && !/\bcliente\b/i.test(text)) out.push({ regra: 'não perguntou se é cliente', trecho: text.slice(0, 40) })
+  const regras = [...REGRAS, ...(opts.foraDoHorario ? [REGRA_FORA_DO_HORARIO] : []), ...(opts.handoff === false ? [REGRA_PROMESSA_SEM_PASSAGEM] : [])]
   const doLead = numerosDo(opts.textoLead || '')
   for (const { regra, re } of regras) {
     const m = text.match(new RegExp(re.source, re.flags.includes('g') ? re.flags : `${re.flags}g`))
@@ -59,6 +67,15 @@ export function checkReply(text: string, opts: { foraDoHorario?: boolean; textoL
   if (perguntas > 1) out.push({ regra: 'mais de uma pergunta', trecho: `${perguntas} interrogações` })
   if (!text.trim()) out.push({ regra: 'vazio', trecho: '' })
   return out
+}
+
+/** Fica só UMA pergunta (a mais completa): as outras frases interrogativas saem (as afirmativas ficam). */
+export function soUltimaPergunta(text: string): string {
+  const frases = text.split(/(?<=[.!?])\s+/)
+  // fica a pergunta mais completa (a mais longa); em empate, a última
+  let manter = -1
+  frases.forEach((f, i) => { if (f.includes('?') && (manter < 0 || f.length >= frases[manter].length)) manter = i })
+  return frases.filter((f, i) => !f.includes('?') || i === manter).join(' ').replace(/\s{2,}/g, ' ').trim()
 }
 
 /** "Oi, tudo bem?" é cumprimento, não pergunta: não conta na regra de uma pergunta por vez. */

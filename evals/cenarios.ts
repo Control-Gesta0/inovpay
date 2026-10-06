@@ -76,7 +76,7 @@ export const CENARIOS: Cenario[] = [
       { nome: 'não passou para a equipe', fn: w => naoPassou(w) },
     ],
     criterios: [
-      'A IA mostrou os temas do portal e do app.',
+      'A IA mostrou a lista de temas de dúvida (split, beneficiários, boleto, relatório de vendas, comprovante do split, outro assunto).',
       'Ao escolher o tema 1, a IA mandou as orientações do split de recebíveis (D+1 e D+0 com horários) e perguntou se resolveu.',
       'Quando a pessoa disse que tem outra dúvida, a IA mostrou os temas de novo.',
     ],

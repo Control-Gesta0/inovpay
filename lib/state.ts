@@ -10,7 +10,9 @@ export type TipoContato = 'cliente' | 'nao_cliente'
 /** Campos que o agente anota para a passagem ao humano (vão para a nota interna). */
 export const CAMPOS_ANOTACAO = [
   'assunto',
+  'estado_maquininha',
   'descricao',
+  'venda_de_hoje',
   'data_venda',
   'valor_venda',
   'comprovante',
