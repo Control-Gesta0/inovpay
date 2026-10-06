@@ -1,0 +1,25 @@
+/**
+ * O que é da conta GHL da InovPay. IDs consultados AO VIVO em 06/10/2026 e
+ * conferidos a cada deploy pelo /api/validate (o GHL grava em campo apagado
+ * devolvendo 200, então o mapa precisa ser provado contra o CRM vivo).
+ */
+export const CRM_MAP = {
+  /** campo do contato "CPF/CNPJ" (texto). A IA grava aqui, para cliente e para não cliente */
+  campoDocumento: { id: '4NVMB1avj34qzlNXYzay', nome: 'CPF/CNPJ' },
+
+  /** tag que a automação antiga colocava em todo contato atendido (preservada) */
+  tagEmContato: 'em contato',
+
+  /** expediente da equipe: segunda a sexta, 9h às 18h, sem pausa */
+  expediente: { inicio: 9, fim: 18 },
+
+  textos: {
+    /** enviado pelo CÓDIGO, uma vez por período fora do horário, antes da triagem */
+    foraDoHorario: (quando: string) =>
+      `Olá! Obrigado por entrar em contato com a InovPay. No momento estamos fora do nosso horário de atendimento, que é de segunda a sexta, das 9h às 18h. Já vou adiantando seu atendimento por aqui e a nossa equipe continua ${quando}.`,
+    reset: 'Reset feito. A conversa começa do zero na próxima mensagem.',
+    /** a trava barrou duas vezes: sai um texto neutro em vez de algo errado */
+    seguro: 'Entendi! Me conta um pouquinho mais, por favor, pra eu te ajudar certinho.',
+    seguroFinal: 'Obrigado pelas informações! Seu atendimento foi registrado e vai para a nossa equipe, que continua por aqui mesmo.',
+  },
+}

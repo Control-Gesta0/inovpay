@@ -1,0 +1,23 @@
+{
+  "name": "agente-ia-inovpay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Agente de IA da InovPay no WhatsApp (GHL + OpenAI + Upstash Redis na Vercel). Substitui o bot de menu e o Conversation AI do GHL.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx scripts/test.ts",
+    "evals": "tsx scripts/evals.ts",
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.34.3",
+    "@vercel/functions": "^1.5.2",
+    "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@vercel/node": "^5.0.2",
+    "tsx": "^4.23.13",
+    "typescript": "^5.7.2"
+  }
+}

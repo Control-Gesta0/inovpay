@@ -51,31 +51,30 @@ Responder taxa ou preço da máquina, criar ou mover oportunidade, agendar reuni
 | A1 Gatilho | Workflow mínimo "Customer Replied (WhatsApp) → webhook" para a Vercel. A decisão fica no código | Bot reiniciando no meio da conversa (31% das boas-vindas) |
 | A2 Tag `em contato` | Mantida, colocada pelo agente no primeiro atendimento | Nenhum, só preservar o filtro que a equipe usa |
 | A3 Fora do horário | Mesmo aviso de horário e, em seguida, **a mesma triagem do horário comercial** (suporte ou qualificação). O fechamento diz quando a equipe volta ("a partir das 9h do próximo dia útil") | Hoje o lead fora do horário só recebe o aviso e espera, em mediana, 14,5 h sem nada registrado |
-| A4 Cliente ou não | **Se o campo `CPF/CNPJ` já estiver preenchido, não pergunta:** trata como cliente e vai direto ao assunto (regra da seção 2.1). Senão, faz a pergunta, mas entende "sou cliente", "minha máquina parou" ou "quero conhecer" sem pedir número. Se o lead já disse o assunto, não pergunta | 31% das respostas eram texto livre e caíam em "Não entendi" |
+| A4 Cliente ou não | Faz a pergunta (seção 2.1), mas entende "sou cliente", "minha máquina parou" ou "quero conhecer" sem pedir número. Se o lead já disse o assunto, não pergunta | 31% das respostas eram texto livre e caíam em "Não entendi" |
 | A5 CPF/CNPJ | Pede, com o aviso de LGPD na mesma mensagem, e grava no campo `CPF/CNPJ`, **validando** 11 ou 14 dígitos e o dígito verificador, como o documento do cliente já pedia. Não pede de novo se o campo já está preenchido | "1", foto e CPF inventado gravados como documento |
 | A6.1 Maquininha | Mesmas 2 a 3 perguntas, aceita a foto ou o vídeo e passa ao atendente | Nenhum, só muda o formato |
 | A6.2 Estorno | Mesmo roteiro e mesmos textos. Na venda anterior, confere se recebeu foto, data e valor antes de dizer "48 horas úteis" | Ramo sem saída (corrigido em 23/09, preservado) |
 | A6.3 Portal/App | Os 6 textos do FAQ do documento, enviados de fato. "Resolveu?" e "outra dúvida" funcionam igual | O texto do tema não chegava ao lead |
 | A6.4 Atendente | Pede o assunto em uma linha e passa. Se o lead pede humano em qualquer ponto, passa na hora | Lead pedindo humano duas vezes e não sendo atendido |
 | A7 Não cliente | Segue para a qualificação, sem trocar de "robô" | Nenhum, só muda o formato |
-| B1 Identificação | Pede o **CNPJ da empresa** (não "cadastrado", porque não é cliente) e registra **na nota interna, não no campo `CPF/CNPJ`**. Assim o campo continua significando "é cliente" (seção 2.1) | Pedir "CPF/CNPJ cadastrado" a quem acabou de dizer que não é cliente, e gravar CNPJ de não cliente no campo de cliente |
+| B1 Identificação | Pede o **CNPJ da empresa** (não "cadastrado", porque não é cliente) e grava no campo `CPF/CNPJ` validado. Se o campo já estiver preenchido, não pede | Pedir "CPF/CNPJ cadastrado" a quem acabou de dizer que não é cliente |
 | B2 Qualificação | As mesmas 6 perguntas, uma por mensagem, pulando o que o lead já respondeu | Repetir pergunta já respondida |
 | B3 Encerramento | Mesmo fechamento ("vou passar para o time comercial"), sem "em instantes" fora do horário. Diz quando o time volta | Promessa de "em instantes" num domingo |
-| Passagem ao humano (A6 e B3) | **Passa a acontecer de verdade:** tag `atendimento-humano` (o agente para de responder naquele contato) e uma **nota interna** com o resumo, o assunto e os dados coletados | Humano perguntando tudo de novo |
+| Passagem ao humano (A6 e B3) | **Passa a acontecer de verdade:** tira a tag `ia`, coloca `atendimento-humano` (o agente para de responder naquele contato) e uma **nota interna** com o resumo, o assunto e os dados coletados | Humano perguntando tudo de novo |
 
-### 2.1 · Regra do campo `CPF/CNPJ` (decisão de 06/10)
+### 2.1 · Pergunta de cliente e campo `CPF/CNPJ` (decisão revista em 06/10)
 
-**Campo preenchido = cliente.** O agente não pergunta "você já é cliente?" e segue direto para "sobre qual assunto você precisa de ajuda?", já usando o documento que está no cadastro.
+- O agente **sempre descobre se é cliente**: pergunta "Você já é cliente da InovPay?", a não ser que a pessoa já tenha dito com clareza (ex.: "minha maquininha deu erro", "sou cliente", "ainda não tenho conta"). Pergunta sobre taxa sozinha não conta, porque cliente também pergunta de taxa.
+- **O documento vai direto para o campo `CPF/CNPJ`**, de cliente e de não cliente, depois de validado.
+- **Se o campo já estiver preenchido, o agente não pede o documento de novo**, seja cliente ou não. A pergunta "é cliente?" continua valendo.
+- Com isso a limpeza dos 9 contatos deixou de ser necessária: o campo não decide mais se é cliente.
 
-Para essa regra continuar verdadeira, três cuidados (conferidos na base em 06/10):
+### 2.2 · Passagem para humano e reset de teste (decisão de 06/10)
 
-| Situação | Quantos hoje | O que o agente faz |
-|---|---|---|
-| Campo preenchido em quem é cliente | A maioria dos 171 contatos com o campo (142 vieram na importação de 04/08; 18 escolheram "sou cliente" no bot) | Segue a regra: não pergunta |
-| Campo preenchido pela IA do GHL em quem **não** é cliente | **9 contatos** (8 leads e 1 teste interno). A IA atual grava o CNPJ do lead no mesmo campo | **Limpeza única antes da virada:** o valor vai para uma nota interna e o campo fica vazio. Precisa da autorização da InovPay, porque é escrita na base deles |
-| Lead novo que informa o CNPJ na qualificação | Todos daqui para frente | O CNPJ vai para a nota interna, não para o campo (B1). Assim, quando ele voltar a falar, não é confundido com cliente |
-
-**Rede de segurança:** se o campo estiver preenchido mas a primeira mensagem for claramente de compra ("quero uma maquininha", "quanto é a taxa?", "quero conhecer"), o agente segue a qualificação sem perguntar nada. Isso cobre os contatos importados do RD que podem ter o campo e ainda não serem clientes (11 têm a tag `importado rd`).
+- **Passagem para humano:** tira a tag `ia`, coloca `atendimento-humano`, cria a nota interna com o resumo e marca a conversa como não lida. Sem a tag `ia`, a IA não responde mais aquele contato.
+- **Gate:** a IA só atende contato com a tag `ia`.
+- **Reset de teste:** o número de teste manda `reset` no WhatsApp (ou a agência chama `POST /api/reset`). O agente tira `atendimento-humano` e `em contato`, coloca `ia` de volta, limpa o campo `CPF/CNPJ`, apaga a memória no Redis e grava um **corte**: tudo o que veio antes deixa de existir para a IA. A conversa no GHL **não é apagada**, porque conversa recriada faz o gatilho "Customer Replied" falhar na primeira mensagem. Só funciona para os números de teste cadastrados.
 
 **Regras que valem em todo o fluxo** (vêm do comportamento atual ou do documento do cliente):
 - Se uma pessoa da equipe respondeu o lead recentemente, ou o contato tem `atendimento-humano`, o agente fica em silêncio. Assim a resposta ao template "Claro, vamos lá!" não reinicia mais o atendimento.
@@ -91,7 +90,7 @@ Para essa regra continuar verdadeira, três cuidados (conferidos na base em 06/1
 |---|---|
 | Workflow "1- Suporte - WhatsApp Bot" (despublicado, não apagado) | **1 workflow** de gatilho: Customer Replied (WhatsApp) → webhook da Vercel |
 | Os 2 agentes do Conversation AI (desligados) | Campos que já existem: `CPF/CNPJ` e `Nome da Empresa` |
-| | Tags `em contato` (já existe) e `atendimento-humano` (nova) |
+| | Tags `ia` (gate), `em contato` (já existe) e `atendimento-humano` (nova) |
 
 Como follow-up e template estão fora do escopo, **não é preciso nenhum workflow de template**. O GHL fica com um único workflow, de uma ação.
 
@@ -106,9 +105,8 @@ Como follow-up e template estão fora do escopo, **não é preciso nenhum workfl
 | D3 | Os textos do documento "Funil de Suporte" (FAQ, estorno, maquininha, horário) valem como estão. Passam só pelo ajuste de tom, sem mudar regra, horário nem prazo |
 | D4 | O aviso de LGPD entra uma vez, na mensagem que pede o CPF/CNPJ (se o campo já existe, não há pedido e não há aviso). O comando "menu" não entra |
 | D5 | A virada (despublicar o bot e desligar o Conversation AI) é autorizada pelo Fernando |
-| D6 | Campo `CPF/CNPJ` preenchido significa cliente: não pergunta "você já é cliente?" (seção 2.1) |
-
-**Pendente de autorização:** a limpeza dos 9 contatos da seção 2.1, feita uma vez antes da virada.
+| D6 | Sempre descobre se é cliente; documento direto no campo; campo preenchido = não pede documento de novo (seção 2.1) |
+| D7 | Passagem para humano tira `ia` e põe `atendimento-humano`. Reset de teste devolve `ia`, limpa tags, documento e histórico (seção 2.2) |
 
 ---
 
@@ -128,8 +126,8 @@ Um cenário por função do inventário. Só sobe com **10/10** em todos.
 10. Lead responde "Claro, vamos lá!" a um template enquanto a Katia atende → agente em silêncio.
 11. Mensagem às 22h de sábado sobre estorno → aviso de horário, triagem completa e fechamento "a equipe responde a partir das 9h de segunda".
 12. CPF inválido → pede de novo e não grava.
-13. Contato com `CPF/CNPJ` preenchido escreve "bom dia" → agente não pergunta se é cliente, pergunta o assunto.
-14. Contato com `CPF/CNPJ` preenchido escreve "quero saber a taxa da maquininha" → segue a qualificação, sem tratar como suporte.
+13. Cliente já conhecido com `CPF/CNPJ` preenchido escreve "bom dia" → não pede documento, pergunta o assunto.
+14. Não cliente com `CPF/CNPJ` preenchido → pergunta se é cliente, mas não pede o CNPJ de novo.
 
 Depois do exame: teste de ponta a ponta com um número real da equipe (mensagem recebida, campo gravado, tags, nota interna e registro de execução conferidos) e rampagem por tag (contato da equipe, 10 conversas, todos).
 
@@ -154,7 +152,6 @@ Depois do exame: teste de ponta a ponta com um número real da equipe (mensagem 
 | Upstash Redis | Pendente (fila de 10 s para juntar mensagens seguidas e registro de execuções) |
 | Projeto na Vercel | Pendente |
 | Decisões D1 a D6 | Fechadas em 06/10 |
-| Autorização da limpeza dos 9 contatos | Pendente |
 
 ---
 

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/inbound.ts": { "maxDuration": 300, "includeFiles": "prompts/**" },
+    "api/validate.ts": { "maxDuration": 60, "includeFiles": "prompts/**" },
+    "api/reset.ts": { "maxDuration": 60 },
+    "api/executions.ts": { "maxDuration": 30 }
+  }
+}

@@ -1,12 +1,58 @@
 # InovPay · Agente de IA no GoHighLevel
 
-Projeto Control Gestão: substituir a automação "1- Suporte - WhatsApp Bot" e a IA do GHL (Conversation AI) da InovPay por um agente de IA na Vercel que faz as mesmas funções, sem menu numerado.
+Agente da InovPay no WhatsApp que substitui a automação "1- Suporte - WhatsApp Bot" e a IA do GHL (Conversation AI). Ele faz as mesmas funções, mas conversando em vez de usar menu numerado. Roda na Vercel, lê e escreve no GHL e usa a OpenAI e o Upstash Redis.
 
 | Documento | Conteúdo |
 |---|---|
 | [docs/01-diagnostico-ghl.md](docs/01-diagnostico-ghl.md) | Análise da conta GHL, das 151 conversas, do bot e da IA atual, catálogo extraído e riscos |
-| [docs/02-escopo-substituicao.md](docs/02-escopo-substituicao.md) | **Escopo vigente:** inventário do que o bot e a IA do GHL fazem, como o agente novo faz cada função, o que sai do GHL, decisões e exame de aceite |
+| [docs/02-escopo-substituicao.md](docs/02-escopo-substituicao.md) | **Escopo vigente:** o que o bot e a IA do GHL fazem, como o agente faz cada função, decisões D1 a D7 e o exame de aceite |
 
-Estado: `DESENHANDO` concluído (decisões D1 a D6 fechadas em 06/10). Próximo: `CONSTRUINDO`, aguardando chave do modelo de IA, Upstash e Vercel.
+**Estado:** `CONSTRUINDO`. Código pronto, `npm test` verde. Falta a chave da OpenAI para rodar o exame (`npm run evals`) e publicar.
 
-Credenciais (token do GHL, chaves de IA, Redis) ficam só nas variáveis de ambiente da Vercel. Nunca no repositório.
+## Como funciona
+
+```
+Lead manda mensagem no WhatsApp
+  → Workflow do GHL "Customer Replied" (sem filtro de tag) → POST /api/inbound?secret=…
+      responde 200 na hora; o resto roda em segundo plano:
+      1. "reset" vindo de número de teste? zera o contato e para
+      2. tag atendimento-humano, ou sem a tag "ia"? não responde
+      3. espera 10s (várias mensagens seguidas viram uma resposta só)
+      4. lê a conversa no GHL a partir do último reset (nota interna fica de fora; áudio e imagem viram texto)
+      5. alguém da equipe respondeu nas últimas 6h? a IA não atropela
+      6. fora do horário (seg a sex, 9h às 18h)? manda o aviso de horário, uma vez, e segue a triagem
+      7. GPT + ferramentas: define se é cliente, grava CPF/CNPJ validado, anota, passa para a equipe
+      8. travas em código: sem taxa, sem preço, sem senha, sem travessão, uma pergunta por vez,
+         sem "em instantes" fora do horário
+      9. envia pelo GHL e registra no diário
+```
+
+**Passagem para a equipe** (`passar_para_humano`): nota interna com resumo e dados coletados, tag `atendimento-humano`, tira a tag `ia` e marca a conversa como não lida. A IA para de responder esse contato.
+
+**Reset de teste:** de um número em `RESET_PHONES`, mande `reset` no WhatsApp. Ou chame `POST /api/reset?secret=…&phone=11999999999`. Tira `atendimento-humano` e `em contato`, coloca `ia`, limpa o CPF/CNPJ, apaga a memória e grava o corte do histórico. A conversa no GHL não é apagada, porque conversa recriada faz o gatilho falhar na primeira mensagem.
+
+## Endpoints
+
+| Endpoint | Para quê |
+|---|---|
+| `GET /api/inbound` | saúde: `{ok, redis, gate, modo}` |
+| `POST /api/inbound?secret=…` | webhook do workflow do GHL |
+| `POST /api/reset?secret=…&phone=…` ou `&contact_id=…` | reset de teste (só contatos de teste; `&forcar=1` para outro) |
+| `GET /api/validate?secret=…` | prova o mapa contra o GHL vivo. Tem que dar `ok: true` antes de ligar |
+| `GET /api/executions?secret=…&limit=50` | diário: respostas, passagens, erros, custo |
+
+## Variáveis de ambiente
+
+Veja `.env.example`. Nunca commitar valores: este repositório é público.
+
+## Provas
+
+- `npm test`: CPF/CNPJ (inclusive o CNPJ alfanumérico), travas, horário, reset, nota da passagem, webhook.
+- `npm run evals`: 14 cenários do escopo (seção 5 do documento 02), com juiz. Só sobe com todos aprovados.
+- `npm run typecheck`.
+
+## Configuração no GHL (feita no painel, a API não cria workflow)
+
+1. Workflow **"IA InovPay · entrada"**: gatilho *Customer Replied* (canal WhatsApp), **sem filtro de tag**. Ação *Custom Webhook* `POST https://<projeto>.vercel.app/api/inbound?secret=<WEBHOOK_SECRET>`, Custom Data `contact_id = {{contact.id}}`.
+2. Enquanto o bot antigo estiver ligado: no workflow "1- Suporte - WhatsApp Bot", condição **"contato NÃO tem a tag ia"** logo no início. No Conversation AI, mesma exclusão (ou desligar para os contatos de teste).
+3. Virada (autorização do Fernando): despublicar o bot e desligar os 2 agentes do Conversation AI.
