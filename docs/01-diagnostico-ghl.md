@@ -1,6 +1,6 @@
 # InovPay · Diagnóstico do GHL e do atendimento no WhatsApp
 
-**Data:** 06/10/2026 · **Fonte:** API do GoHighLevel ao vivo (location `MCpYTxCMOUCftkHlGyOB`), 151 conversas e 3.719 mensagens de 21/07 a 06/10, documento "Funil de Suporte · WhatsApp Bot" (ago/2026) e o site inovpay.com.br.
+**Data:** 06/10/2026 · **Fonte:** API do GoHighLevel ao vivo, 151 conversas e 3.719 mensagens de 21/07 a 06/10, documento "Funil de Suporte · WhatsApp Bot" (ago/2026) e o site inovpay.com.br.
 > **Atualização (06/10):** o escopo foi restrito a substituir o que a IA do GHL e a automação do bot fazem hoje. As seções 8 a 11 abaixo ficam como referência; o escopo vigente está em [`02-escopo-substituicao.md`](02-escopo-substituicao.md).
 
 **Estado do projeto:** `DIAGNOSTICANDO`. CRM confirmado (GoHighLevel). A estrutura está mapeada. O desenho depende das respostas da seção 11.
@@ -50,7 +50,7 @@
 | Canais | **WhatsApp oficial (Cloud API nativo do GHL), +55 11 91850-2471**: 1.741 mensagens recebidas e 1.518 enviadas (04/08 a 06/10) · **ZaptosWPP** (WhatsApp não oficial do Fernando, integrado como SMS): 346 mensagens, só entre 23/07 e 28/07 · Instagram: 13 mensagens |
 | Usuários | Fernando Talarico (admin), Katia Duque (suporte@, admin), Ramon Gandra (admin), Guilherme Gomes (agência Control Gestão) |
 | Contatos | 1.159, dos quais 1.025 foram importados de uma vez em 04/08. Só 4 têm a tag `cliente ativo` |
-| Pipeline | **Novos Leads InovPay** `d8cxey6LPExYI33I9JpF`, com 10 etapas: Novo Lead · Primeiro Contato · Reunião Agendada · Reunião Realizada · No-Show · Criar Conta · Conta em Análise · Aguardando Pgto · Enviar Máquina · Ativação |
+| Pipeline | **Novos Leads InovPay**, com 10 etapas: Novo Lead · Primeiro Contato · Reunião Agendada · Reunião Realizada · No-Show · Criar Conta · Conta em Análise · Aguardando Pgto · Enviar Máquina · Ativação |
 | Oportunidades | 23 no total: Primeiro Contato 8 · Reunião Agendada 1 · Reunião Realizada 7 · Criar Conta 3 · Ativação 4 (3 ganhas). Valor típico R$ 699 |
 | Campos do contato | `CPF/CNPJ` (preenchido em 171) · `Nome da Empresa` (259) |
 | Campos da oportunidade | `Parceiro` (opções: Contador Martins, Murillo - Power, Gustavo - Space, Kaua Netto) |
@@ -58,7 +58,7 @@
 | Workflows | `1- Suporte - WhatsApp Bot` (publicado, versão 34, editado em 29/09) e um rascunho vazio |
 | Conversation AI | A API informa **2 agentes**. O token atual não tem permissão para ler a configuração deles |
 | Base de conhecimento | 1, vazia (0 FAQs) · Voice AI: nenhum |
-| Calendários | 4 calendários **pessoais** (Katia, Fernando, Ramon, Guilherme), sincronizados com a agenda pessoal. Aparecem eventos como consulta médica e aula de italiano. Não existe um calendário de "reunião comercial" |
+| Calendários | 4 calendários **pessoais** (Katia, Fernando, Ramon, Guilherme), sincronizados com a agenda pessoal, onde aparecem compromissos particulares. Não existe um calendário de "reunião comercial" |
 | Templates de WhatsApp | A API não listou nenhum, mas as conversas mostram pelo menos "Podemos continuar nossa conversa?" e "Venda bloqueada". Conferir no painel |
 | Produto | "Maquininha InovPAY", sem preço cadastrado |
 
@@ -227,9 +227,9 @@ Um ciclo completo leva **13 a 14 dias** (dois casos inteiros nas conversas). Pon
 | 3 | Não há cadastro confiável de quem é cliente ativo (4 tags `cliente ativo`, CPF/CNPJ em 171 contatos) | A IA não sabe se é suporte ou venda sem perguntar | Importar a lista de clientes ativos (exportada da Cappta e do PagBank) com a tag `cliente-inovpay` / `cliente-pagbank` e o CNPJ. Sem isso, a IA pergunta de forma natural, sem menu |
 | 4 | Duas tabelas InovPay diferentes, recebimento "amanhã" × "em minutos" × "D0", link "descontinuado" × "ativo" | A IA repete uma contradição com confiança | A InovPay define a versão oficial (seção 11) |
 | 5 | Site focado em clínicas, oficinas e petshops; o WhatsApp recebe lojas de celular | Prompt afinado para o público errado | Duas formas de abrir a conversa no prompt: "serviço com repasse a profissional" e "revenda com repasse a fornecedor" |
-| 6 | Senha padrão do portal enviada em texto, igual para todos os clientes | Segurança da conta do cliente | Alerta para a InovPay. A IA fica proibida de enviar qualquer senha |
+| 6 | Envio de credenciais de acesso pelo chat | Segurança da conta do cliente | Tratado diretamente com a InovPay. A IA fica proibida de enviar qualquer senha |
 | 7 | Pipeline quase vazio | Impossível provar o ganho da IA sem a "foto do antes" | Usar as medidas da seção 8.4 como linha de base e a IA passa a criar a oportunidade no 1º contato |
-| 8 | Calendários pessoais com eventos privados | A IA marcaria reunião em cima de consulta médica, ou exporia o nome do evento | Criar um calendário dedicado "Conversa InovPay" com a disponibilidade real |
+| 8 | Calendários pessoais com eventos privados | A IA marcaria reunião em cima de compromisso particular, ou exporia o nome do evento | Criar um calendário dedicado "Conversa InovPay" com a disponibilidade real |
 | 9 | Template com nome errado ("Olá, Maquininha", "Olá, Semnick", "Olá, ") | O primeiro nome do contato está sujo na base | A IA corrige o nome quando o lead se apresentar. Revisar a importação de 04/08 |
 | 10 | Respostas automáticas do WhatsApp Business do próprio lead ("Estamos fora do nosso horário") | A IA conversa com o robô do lead | Trava em código para ignorar resposta automática |
 | 11 | Mensagens "Message type is currently not supported" e áudios da equipe que chegaram mudos | Lead travado | O agente registra e passa ao humano; não fingir que entendeu |

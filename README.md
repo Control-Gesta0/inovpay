@@ -7,6 +7,6 @@ Projeto Control Gestão: substituir a automação "1- Suporte - WhatsApp Bot" e 
 | [docs/01-diagnostico-ghl.md](docs/01-diagnostico-ghl.md) | Análise da conta GHL, das 151 conversas, do bot e da IA atual, catálogo extraído e riscos |
 | [docs/02-escopo-substituicao.md](docs/02-escopo-substituicao.md) | **Escopo vigente:** inventário do que o bot e a IA do GHL fazem, como o agente novo faz cada função, o que sai do GHL, decisões e exame de aceite |
 
-Estado: `DESENHANDO` (aguardando as decisões D1 a D5 do escopo).
+Estado: `DESENHANDO` concluído (decisões D1 a D6 fechadas em 06/10). Próximo: `CONSTRUINDO`, aguardando chave do modelo de IA, Upstash e Vercel.
 
 Credenciais (token do GHL, chaves de IA, Redis) ficam só nas variáveis de ambiente da Vercel. Nunca no repositório.
