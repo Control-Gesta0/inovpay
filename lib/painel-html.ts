@@ -21,7 +21,7 @@ nav{display:flex;gap:4px;overflow-x:auto}nav button{border:0;background:none;col
 nav button.ativo{background:var(--escuro);color:#fff}
 @media (prefers-color-scheme: dark){nav button.ativo{background:var(--lima);color:#16181B}}
 main{max-width:1100px;margin:0 auto;padding:16px}
-.grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(136px,1fr));gap:12px}
+.grade{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}@media (min-width:760px){.grade{grid-template-columns:repeat(4,minmax(0,1fr))}}.n{white-space:nowrap}
 .card{background:var(--card);border:1px solid var(--borda);border-radius:14px;padding:14px 16px}
 .n{font-size:28px;font-weight:800}.r{color:var(--sub);font-size:13px}
 h2{font-size:16px;margin:24px 0 10px}
