@@ -1,9 +1,32 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/inbound.ts": { "maxDuration": 300, "includeFiles": "prompts/**" },
-    "api/validate.ts": { "maxDuration": 60, "includeFiles": "prompts/**" },
-    "api/reset.ts": { "maxDuration": 60 },
-    "api/executions.ts": { "maxDuration": 30 }
-  }
+    "api/inbound.ts": {
+      "maxDuration": 300,
+      "includeFiles": "prompts/**"
+    },
+    "api/validate.ts": {
+      "maxDuration": 60,
+      "includeFiles": "prompts/**"
+    },
+    "api/reset.ts": {
+      "maxDuration": 60
+    },
+    "api/executions.ts": {
+      "maxDuration": 30
+    },
+    "api/painel.ts": {
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/painel",
+      "destination": "/api/painel"
+    },
+    {
+      "source": "/",
+      "destination": "/api/painel"
+    }
+  ]
 }

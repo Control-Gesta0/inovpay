@@ -36,7 +36,10 @@ export interface ExecEntry {
   tipo: 'resposta' | 'aviso' | 'passou' | 'pulou' | 'erro' | 'reset'
   leadId: string
   nome?: string
+  /** na passagem: o motivo (estorno, suporte_maquininha, qualificacao_concluida…) */
   porta?: string
+  /** cliente ou não cliente, quando já se sabe */
+  perfil?: 'cliente' | 'nao_cliente'
   ms?: number
   tools?: string[]
   guard?: string[]

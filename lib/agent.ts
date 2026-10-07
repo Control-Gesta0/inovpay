@@ -146,10 +146,13 @@ export async function processContact(contactId: string, webhookId: string): Prom
 
       const detail = await enviar(contactId, reply.text)
       await markAnswered(contactId, target.id)
-      if (!state.saudou) await patchState(contactId, { saudou: true })
+      const depois = await patchState(contactId, { saudou: true })
       await logExec({
         tipo: reply.handoff ? 'passou' : 'resposta', leadId: contactId, nome, ms: Date.now() - t0,
-        tools: reply.toolsUsed, guard: reply.guard, usage: reply.usage, detalhe: detail,
+        porta: reply.handoff ? depois.finalizado?.motivo : undefined, perfil: depois.tipo,
+        tools: reply.toolsUsed, guard: reply.guard, usage: reply.usage,
+        // na passagem o diário guarda o resumo (é o que o painel mostra para a equipe)
+        detalhe: reply.handoff ? (depois.finalizado?.resumo || detail) : detail,
       })
       console.log(`[agente] RESPONDEU ${contactId} em ${Date.now() - t0}ms · tools: ${reply.toolsUsed.join(', ') || 'nenhuma'}${reply.guard.length ? ` · trava: ${reply.guard.join(' | ')}` : ''}`)
       return

@@ -166,6 +166,22 @@ async function main() {
   ]).map(m => m.text), ['sou cliente', 'estorno'])
   eq('grupo de WhatsApp', ehGrupo({ phone: '+120363012345678' }), true)
 
+  // ---------- Painel ----------
+  const { senhaConfere, resumir, porMotivo } = await import('../lib/painel')
+  eq('senha certa', senhaConfere('54321', '54321'), true)
+  eq('senha errada', senhaConfere('12345', '54321'), false)
+  eq('sem senha configurada não entra', senhaConfere('54321', ''), false)
+  const ex = [
+    { at: '2026-10-07T13:00:00Z', tipo: 'resposta' as const, leadId: 'a', perfil: 'cliente' as const },
+    { at: '2026-10-07T13:01:00Z', tipo: 'passou' as const, leadId: 'a', perfil: 'cliente' as const, porta: 'estorno_anterior' },
+    { at: '2026-10-07T13:02:00Z', tipo: 'resposta' as const, leadId: 'b', perfil: 'nao_cliente' as const, custoUsd: 0.01 },
+    { at: '2026-10-07T13:03:00Z', tipo: 'aviso' as const, leadId: 'b' },
+    { at: '2026-10-07T13:04:00Z', tipo: 'pulou' as const, leadId: 'c' },
+  ]
+  const r = resumir(ex)
+  eq('resumo do painel', [r.contatos, r.mensagens, r.passagens, r.clientes, r.naoClientes, r.foraDoHorario, r.custoUsd], [2, 3, 1, 1, 1, 1, 0.01])
+  eq('passagens por motivo', porMotivo(ex), [{ motivo: 'Cancelamento (dias anteriores)', total: 1 }])
+
   console.log(falhas ? `\n❌ ${falhas} falha(s)` : '\n✅ tudo certo')
   process.exit(falhas ? 1 : 0)
 }

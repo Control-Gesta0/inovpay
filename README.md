@@ -43,6 +43,7 @@ Lead manda mensagem no WhatsApp
 | `POST /api/reset?secret=…&phone=…` ou `&contact_id=…` | reset de teste (só contatos de teste; `&forcar=1` para outro) |
 | `GET /api/validate?secret=…` | prova o mapa contra o GHL vivo. Tem que dar `ok: true` antes de ligar |
 | `GET /api/executions?secret=…&limit=50` | diário: respostas, passagens, erros, custo |
+| `GET /painel` | painel da InovPay (senha na env `PAINEL_SENHA`): visão geral, passagens com resumo e link do contato, diário e resultados de 30 dias |
 
 ## Variáveis de ambiente
 
