@@ -7,6 +7,12 @@ export const CRM_MAP = {
   /** campo do contato "CPF/CNPJ" (texto). A IA grava aqui, para cliente e para não cliente */
   campoDocumento: { id: '4NVMB1avj34qzlNXYzay', nome: 'CPF/CNPJ' },
 
+  /**
+   * Funil comercial que a Central mostra (só leitura: a IA não move card nesta fase).
+   * As etapas são lidas AO VIVO do GHL; aqui fica só qual pipeline é.
+   */
+  pipeline: { id: 'd8cxey6LPExYI33I9JpF', nome: 'Novos Leads InovPay' },
+
   /** tag que a automação antiga colocava em todo contato atendido (preservada) */
   tagEmContato: 'em contato',
 

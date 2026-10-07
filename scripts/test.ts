@@ -166,21 +166,50 @@ async function main() {
   ]).map(m => m.text), ['sou cliente', 'estorno'])
   eq('grupo de WhatsApp', ehGrupo({ phone: '+120363012345678' }), true)
 
-  // ---------- Painel ----------
-  const { senhaConfere, resumir, porMotivo } = await import('../lib/painel')
-  eq('senha certa', senhaConfere('54321', '54321'), true)
-  eq('senha errada', senhaConfere('12345', '54321'), false)
-  eq('sem senha configurada não entra', senhaConfere('54321', ''), false)
+  // ---------- Central (contrato de dados) ----------
+  const { buildConversas, buildExecutionData, buildFunil, buildRecovery, marcoDe } = await import('../lib/central-data')
+  const { mascararPII } = await import('../lib/guards')
+  const NOW = Date.parse('2026-10-07T15:00:00Z')
+  const h = (horas: number) => new Date(NOW - horas * 3600_000).toISOString()
+  const u = { input: 4000, cached: 3000, output: 200, calls: 2 }
   const ex = [
-    { at: '2026-10-07T13:00:00Z', tipo: 'resposta' as const, leadId: 'a', perfil: 'cliente' as const },
-    { at: '2026-10-07T13:01:00Z', tipo: 'passou' as const, leadId: 'a', perfil: 'cliente' as const, porta: 'estorno_anterior' },
-    { at: '2026-10-07T13:02:00Z', tipo: 'resposta' as const, leadId: 'b', perfil: 'nao_cliente' as const, custoUsd: 0.01 },
-    { at: '2026-10-07T13:03:00Z', tipo: 'aviso' as const, leadId: 'b' },
-    { at: '2026-10-07T13:04:00Z', tipo: 'pulou' as const, leadId: 'c' },
+    { at: h(1), tipo: 'passou' as const, leadId: 'a', nome: 'Ana', perfil: 'cliente' as const, porta: 'estorno', ms: 12000, tools: ['anotar', 'passar_para_humano'], usage: u, custoUsd: 0.002, detalhe: 'Estorno de hoje: não conseguiu na maquininha' },
+    { at: h(1.5), tipo: 'resposta' as const, leadId: 'a', nome: 'Ana', perfil: 'cliente' as const, ms: 11000, usage: u, custoUsd: 0.001, respostaIA: 'O estorno é de uma venda feita hoje?' },
+    { at: h(2), tipo: 'resposta' as const, leadId: 'b', nome: 'Bruno', perfil: 'cliente' as const, ms: 9000, usage: u, custoUsd: 0.001, respostaIA: 'Que bom que conseguimos ajudar! A InovPay agradece seu contato.' },
+    { at: h(3), tipo: 'passou' as const, leadId: 'c', nome: 'Carla', perfil: 'nao_cliente' as const, porta: 'qualificacao_concluida', ms: 13000, guard: ['uma pergunta: cortado'], usage: u, custoUsd: 0.001, detalhe: 'Repasse para 3 parceiros' },
+    { at: h(3.2), tipo: 'aviso' as const, leadId: 'c', nome: 'Carla', detalhe: 'fora do horário' },
+    { at: h(4), tipo: 'erro' as const, leadId: 'd', nome: 'Davi', detalhe: 'GHL 429' },
+    { at: h(5), tipo: 'pulou' as const, leadId: 'e', nome: 'Eva', detalhe: 'uma pessoa da equipe respondeu nas últimas 6h: a IA não atropela' },
+    { at: h(6), tipo: 'reset' as const, leadId: 'f', nome: 'Teste', detalhe: 'tags e histórico limpos' },
+    { at: h(24 * 40), tipo: 'resposta' as const, leadId: 'g', nome: 'Gil', detalhe: 'enviado' },
   ]
-  const r = resumir(ex)
-  eq('resumo do painel', [r.contatos, r.mensagens, r.passagens, r.clientes, r.naoClientes, r.foraDoHorario, r.custoUsd], [2, 3, 1, 1, 1, 1, 0.01])
-  eq('passagens por motivo', porMotivo(ex), [{ motivo: 'Cancelamento (dias anteriores)', total: 1 }])
+  eq('marco: passou', marcoDe(ex[0]), 'passou')
+  eq('marco: resolvido sem a equipe', marcoDe(ex[2]), 'resolvido')
+  eq('marco: resposta comum não é marco', marcoDe(ex[1]), undefined)
+  const cd = buildExecutionData(ex, 5.4, 'gpt-5.4-mini', NOW, 'LOC')
+  eq('saúde 24h', cd.saude24h, { total: 7, respondeu: 6, erros: 1, pulou: 1 })
+  eq('marcos 7 dias', cd.marcos.seteDias, { atendidos: 3, clientes: 2, naoClientes: 1, foraDoHorario: 1, resolvidos: 1, passagens: 2, qualificados: 1 })
+  eq('reset de teste não conta como atendimento', cd.marcos.trintaDias.atendidos, 3)
+  eq('passagens por motivo', cd.motivos.seteDias.map(m => [m.rotulo, m.n]), [['Estorno de venda de hoje', 1], ['Comercial qualificado', 1]])
+  eq('estorno de hoje é urgente', cd.passagens.map(p => [p.nome, p.urgente]), [['Ana', true], ['Carla', false]])
+  eq('link do contato no GHL', cd.passagens[0].link, 'https://app.gohighlevel.com/v2/location/LOC/contacts/detail/a')
+  eq('custo em reais (7d)', cd.financeiro.seteDias, 0.0270)
+  eq('14 dias de série', cd.financeiro.porDia.length, 14)
+  const cv = buildConversas(cd.execucoes, NOW)
+  eq('estados das conversas', cv.grupos, { iaAtendendo: 3, comHumano: 3, foraDaIA: 0 })
+  eq('conversas 24h', cv.conversas24h, 3)
+  eq('mediana em segundos', cv.respostaMedianaSegundos, 12)
+  const fu = buildFunil([{ id: 's2', name: 'Primeiro Contato', position: 1 }, { id: 's1', name: 'Novo Lead', position: 0 }], [
+    { id: '1', pipelineStageId: 's1', status: 'open', lastStageChangeAt: h(24 * 10), monetaryValue: 699, contact: { name: 'Ana', tags: ['ia'] } },
+    { id: '2', pipelineStageId: 's2', status: 'open', lastStageChangeAt: h(2), contact: { name: 'Bia', tags: [] } },
+    { id: '3', pipelineStageId: 's2', status: 'won', lastStageChangeAt: h(24 * 20), contact: { name: 'Caio', tags: ['IA'] } },
+  ], 'ia', NOW)
+  eq('funil na ordem do GHL', fu.funil.map(e => [e.label, e.n, e.parados]), [['Novo Lead', 1, 1], ['Primeiro Contato', 1, 0]])
+  eq('ganhas fora das etapas', fu.leads, { total: 3, abertas: 2, ganhas: 1, perdidas: 0, comIA: 2, tagsDisponiveis: true })
+  eq('sem follow-up nesta fase', [buildRecovery().ativo, buildRecovery().fila.length], [false, 0])
+  eq('PII mascarada', mascararPII('meu cnpj 12.345.678/0001-95, cpf 52998224725, fone (11) 98765-4321, a@b.com'), 'meu cnpj [cnpj], cpf [cpf], fone [telefone], [e-mail]')
+  eq('CNPJ só números mascarado', mascararPII('12345678000195'), '[cnpj]')
+  eq('valor em reais não vira telefone', mascararPII('vendi R$ 1.250,00 ontem'), 'vendi R$ 1.250,00 ontem')
 
   console.log(falhas ? `\n❌ ${falhas} falha(s)` : '\n✅ tudo certo')
   process.exit(falhas ? 1 : 0)

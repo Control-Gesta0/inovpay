@@ -15,18 +15,20 @@
     "api/executions.ts": {
       "maxDuration": 30
     },
-    "api/painel.ts": {
+    "api/central.ts": {
       "maxDuration": 60
     }
   },
-  "rewrites": [
+  "redirects": [
     {
       "source": "/painel",
-      "destination": "/api/painel"
+      "destination": "https://central-inovpay.vercel.app",
+      "permanent": false
     },
     {
       "source": "/",
-      "destination": "/api/painel"
+      "destination": "https://central-inovpay.vercel.app",
+      "permanent": false
     }
   ]
 }

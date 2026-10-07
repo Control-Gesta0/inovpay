@@ -1,4 +1,5 @@
 import { CONFIG } from './config'
+import { mascararPII } from './guards'
 import { k, redis } from './redis'
 
 /**
@@ -48,11 +49,17 @@ export interface ExecEntry {
   custoUsd?: number | null
   urgente?: boolean
   detalhe?: string
+  /** o que o lead escreveu neste turno (PII mascarada): replay na Central */
+  turnoLead?: string
+  /** o que a IA enviou (PII mascarada) */
+  respostaIA?: string
 }
 
 export async function logExec(e: Omit<ExecEntry, 'at'>): Promise<void> {
   const entry: ExecEntry = { at: new Date().toISOString(), ...e }
   if (e.usage && e.custoUsd === undefined) entry.custoUsd = costUsd(CONFIG.llmModel, e.usage)
+  if (entry.turnoLead) entry.turnoLead = mascararPII(entry.turnoLead)
+  if (entry.respostaIA) entry.respostaIA = mascararPII(entry.respostaIA)
   try {
     await redis.lpush(k('execlog'), entry)
     await redis.ltrim(k('execlog'), 0, 1999)

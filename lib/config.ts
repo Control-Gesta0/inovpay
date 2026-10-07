@@ -43,6 +43,9 @@ export const CONFIG = {
   /** tag: só com a tag de gate · todos: todo contato sem atendimento-humano · desligada: ninguém */
   modoGate: ((v: string): ModoGate => (v === 'todos' || v === 'desligada' ? v : 'tag'))((process.env.MODO_GATE || 'tag').toLowerCase()),
 
+  /** cotação para mostrar o custo do modelo em reais na Central */
+  usdBrl: Number(process.env.COST_USD_BRL || process.env.COTACAO_DOLAR || 5.4),
+
   /** quem pode mandar "reset" pelo WhatsApp (telefones) ou pelo id do contato */
   resetPhones: list(process.env.RESET_PHONES),
   testContactIds: list(process.env.TEST_CONTACT_IDS),

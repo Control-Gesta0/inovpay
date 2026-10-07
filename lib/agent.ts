@@ -109,7 +109,7 @@ export async function processContact(contactId: string, webhookId: string): Prom
           await enviar(contactId, CRM_MAP.textos.foraDoHorario(volta))
           state = await patchState(contactId, { avisoForaAte: abre })
           avisoForaEnviado = true
-          await logExec({ tipo: 'aviso', leadId: contactId, nome, detalhe: `fora do horário: equipe volta ${volta}` })
+          await logExec({ tipo: 'aviso', leadId: contactId, nome, detalhe: `fora do horário: equipe volta ${volta}`, turnoLead: textoTurno, respostaIA: CRM_MAP.textos.foraDoHorario(volta) })
         }
       }
 
@@ -131,7 +131,7 @@ export async function processContact(contactId: string, webhookId: string): Prom
         jaFalou: conv.msgs.some(m => m.dir === 'out'), avisoForaEnviado, lastLeadText: textoTurno,
       }, conv.msgs)
       if (!reply?.text) {
-        await logExec({ tipo: 'erro', leadId: contactId, nome, detalhe: 'modelo não gerou resposta' })
+        await logExec({ tipo: 'erro', leadId: contactId, nome, detalhe: 'modelo não gerou resposta', turnoLead: textoTurno })
         return
       }
 
@@ -151,6 +151,7 @@ export async function processContact(contactId: string, webhookId: string): Prom
         tipo: reply.handoff ? 'passou' : 'resposta', leadId: contactId, nome, ms: Date.now() - t0,
         porta: reply.handoff ? depois.finalizado?.motivo : undefined, perfil: depois.tipo,
         tools: reply.toolsUsed, guard: reply.guard, usage: reply.usage,
+        turnoLead: textoTurno, respostaIA: reply.text,
         // na passagem o diário guarda o resumo (é o que o painel mostra para a equipe)
         detalhe: reply.handoff ? (depois.finalizado?.resumo || detail) : detail,
       })

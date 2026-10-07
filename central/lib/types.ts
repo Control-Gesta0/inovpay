@@ -1,0 +1,112 @@
+/**
+ * Contrato de dados Agente → Central. ESPELHO de ../lib/central-data.ts
+ * (o agente é a fonte). Mudou lá, mude aqui.
+ */
+
+export type Marco = 'passou' | 'resolvido'
+export type Perfil = 'cliente' | 'nao_cliente'
+
+export interface Execution {
+  ts: string
+  contactId: string
+  nome: string
+  tipo: 'resposta' | 'aviso' | 'passou' | 'pulou' | 'erro' | 'reset'
+  resultado: 'respondeu' | 'erro' | 'pulou'
+  detalhe: string
+  duracaoMs: number
+  tools: string[]
+  travas: string[]
+  midia?: { audios: number; imagens: number; documentos: number }
+  turnoLead?: string
+  respostaIA?: string
+  marco?: Marco
+  motivo?: string
+  perfil?: Perfil
+  custo?: {
+    totalBrl: number
+    modeloUsd: number
+    usdBrl: number
+    tokens: { input: number; cached: number; output: number; chamadas: number }
+  }
+}
+
+export interface Marcos {
+  atendidos: number
+  clientes: number
+  naoClientes: number
+  foraDoHorario: number
+  resolvidos: number
+  passagens: number
+  qualificados: number
+}
+
+export interface MotivoN { motivo: string; rotulo: string; n: number }
+
+export interface Passagem {
+  ts: string
+  contactId: string
+  nome: string
+  motivo: string
+  rotulo: string
+  perfil?: Perfil
+  resumo: string
+  urgente: boolean
+  link: string
+}
+
+export interface Financial {
+  hoje: number
+  seteDias: number
+  trintaDias: number
+  totalRegistrado: number
+  execucoesComCusto: number
+  execucoesSemCusto: number
+  medioPorExecucao: number
+  porDia: Array<{ data: string; custo: number; execucoes: number }>
+  usdBrl: number
+  observacao: string
+}
+
+export interface ExecutionData {
+  execucoes: Execution[]
+  saude24h: { total: number; respondeu: number; erros: number; pulou: number }
+  marcos: { hoje: Marcos; seteDias: Marcos; trintaDias: Marcos }
+  motivos: { hoje: MotivoN[]; seteDias: MotivoN[]; trintaDias: MotivoN[] }
+  passagens: Passagem[]
+  financeiro: Financial
+  cobertura: { desde: string | null; registros: number }
+  modelo: string
+}
+
+export interface FunilEtapa {
+  id: string
+  label: string
+  n: number
+  ia: boolean
+  valor: number
+  parados: number
+  amostras: Array<{ id: string; nome: string; valor: number; diasParado: number }>
+}
+
+export interface LiveData {
+  geradoEm: string
+  conversas: Array<{ id: string; nome: string; ultimaMsg: string; minutosAtras: number; estado: 'ia' | 'humano' | 'fora' }>
+  grupos: { iaAtendendo: number; comHumano: number; foraDaIA: number }
+  conversas24h: number
+  respostaMedianaSegundos: number | null
+  pipeline: { nome: string }
+  funil: FunilEtapa[]
+  leads: { total: number; abertas: number; ganhas: number; perdidas: number; comIA: number; tagsDisponiveis: boolean }
+  regras: { modoGate: string; gateTag: string; humanTag: string; expediente: string }
+  saude: { crmOk: boolean; problemas: string[] }
+}
+
+export interface RecoveryData {
+  ativo: boolean
+  fila: Array<{ contactId: string; nome: string; proximoToque: number; quando: string }>
+  buckets: { vencidos: number; proximaHora: number; hoje: number; amanha: number; depois: number }
+  porToque: Array<{ toque: number; enviados: number; responderam: number; concretizaram: number }>
+  esgotados: number
+  definicao: { resposta: string; objetivo: string; janelaHoras: number; cadenciaHoras: number[] }
+  observacao: string
+}

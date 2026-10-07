@@ -43,7 +43,15 @@ Lead manda mensagem no WhatsApp
 | `POST /api/reset?secret=…&phone=…` ou `&contact_id=…` | reset de teste (só contatos de teste; `&forcar=1` para outro) |
 | `GET /api/validate?secret=…` | prova o mapa contra o GHL vivo. Tem que dar `ok: true` antes de ligar |
 | `GET /api/executions?secret=…&limit=50` | diário: respostas, passagens, erros, custo |
-| `GET /painel` | painel da InovPay (senha na env `PAINEL_SENHA`): visão geral, passagens com resumo e link do contato, diário e resultados de 30 dias |
+| `GET /api/central?recurso=execucoes\|live\|recuperacao` | dados da Central (header `x-central-secret: <CENTRAL_SECRET>`). Só leitura, zero tokens |
+| `GET /painel` | redireciona para a Central |
+
+## Central de IA (painel)
+
+**https://central-inovpay.vercel.app** · padrão Central v4.1 da Control Gestão, em `central/` (projeto Vercel
+próprio, `central-inovpay`). Visão geral com briefing, operação (agora, passagens com resumo e link do contato,
+histórico auditável, funil do GHL), resultados (triagem, motivos, custo), o roteiro e as travas, e a conferência
+do CRM. Contrato de dados em `lib/central-data.ts`; detalhes em `central/README.md`.
 
 ## Variáveis de ambiente
 

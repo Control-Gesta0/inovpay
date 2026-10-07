@@ -97,3 +97,17 @@ export function ehAutoResposta(text: string): boolean {
 
 /** "Message type is currently not supported." do GHL: o conteúdo não chegou. */
 export const ehNaoSuportada = (text: string) => /message type is currently not supported/i.test(text)
+
+/**
+ * Mascara e-mail, CPF, CNPJ (inclusive o alfanumérico) e telefone antes de
+ * guardar texto de conversa no diário que a Central mostra.
+ */
+export function mascararPII(texto: string): string {
+  return texto
+    .replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '[e-mail]')
+    .replace(/\b[A-Z0-9]{2}\.[A-Z0-9]{3}\.[A-Z0-9]{3}\/[A-Z0-9]{4}-\d{2}\b/gi, '[cnpj]')
+    .replace(/\b\d{14}\b/g, '[cnpj]')
+    .replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, '[cpf]')
+    .replace(/(\+?55\s?)?\(?\b\d{2}\)?\s?9?\d{4}[-\s]?\d{4}\b/g, '[telefone]')
+    .slice(0, 1500)
+}
