@@ -91,7 +91,7 @@ export async function falar(id: string, texto: string): Promise<{ sessao?: Sessa
     if (usados > MAX_DIA) return { erro: `O laboratório chegou ao limite de ${MAX_DIA} mensagens hoje (protege o custo). Volta amanhã.` }
 
     const { prompt, textos } = s.opcoes.versao === 'rascunho'
-      ? await candidata().then(c => ({ textos: c.textos, prompt: renderPrompt(loadPrompt(), c.textos) }))
+      ? await candidata().then(c => ({ textos: c.textos, prompt: renderPrompt(loadPrompt(), c.textos, c.extras) }))
       : await baseVigente()
 
     const agora = agoraSimulado(s.opcoes.fora)

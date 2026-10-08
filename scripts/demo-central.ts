@@ -101,16 +101,35 @@ const live = {
 }
 // Base de dados: os textos reais, com um rascunho de exemplo
 const padrao = textosPadrao(readFileSync('prompts/inovpay.md', 'utf-8'))
-const rascunho: Record<string, string> = { portal_relatorio: padrao.portal_relatorio + '\n💡 Dica: o relatório pode ser exportado em planilha.' }
+const rascunho: Record<string, string> = {}
 const base = {
   versao: 2, publicadoEm: new Date(NOW - 3 * 86400_000).toISOString(), nota: 'Caminhos do app atualizados', rascunhoEm: new Date(NOW - 3600_000).toISOString(),
-  grupos: GRUPOS,
-  itens: ITENS.map(i => ({ id: i.id, grupo: i.grupo, titulo: i.titulo, ajuda: i.ajuda, padrao: padrao[i.id], noAr: padrao[i.id], rascunho: rascunho[i.id] ?? null, problemas: rascunho[i.id] ? validarTexto(i.id, rascunho[i.id]) : [] })),
-  alteracoes: Object.keys(rascunho),
+  grupos: { ...GRUPOS, extras: 'Informações acrescentadas pela equipe' },
+  itens: [
+    ...ITENS.map(i => ({ id: i.id, grupo: i.grupo as string, titulo: i.titulo, ajuda: i.ajuda, padrao: padrao[i.id], noAr: padrao[i.id], rascunho: rascunho[i.id] ?? null, problemas: rascunho[i.id] ? validarTexto(i.id, rascunho[i.id]) : [] })),
+    { id: 'extra_demo0001', grupo: 'extras', titulo: 'Formas de pagamento na maquininha', ajuda: 'Informação nova: entra quando o rascunho for publicado.', padrao: '', noAr: '', rascunho: 'A maquininha aceita pagamento por aproximação e Pix por QR Code.', problemas: [] },
+  ],
+  alteracoes: ['extra_demo0001'],
   historico: [
     { versao: 1, publicadoEm: new Date(NOW - 6 * 86400_000).toISOString(), nota: 'Encerramento do comercial mais curto', mudancas: ['enc_comercial'] },
     { versao: 0, publicadoEm: null, nota: null, mudancas: [] },
   ],
+  conversa: [
+    { id: 'c1', ts: new Date(NOW - 5 * 3600_000).toISOString(), papel: 'equipe', origem: 'base', texto: 'O split D+0 agora pode ser criado até 13h, não mais até 14h.' },
+    { id: 'c2', ts: new Date(NOW - 5 * 3600_000 + 9000).toISOString(), papel: 'ia', origem: 'base', destino: 'base', custoUsd: 0.0024,
+      texto: 'Troquei o horário de criação do split D+0 de 14h para 13h no texto do portal e mantive o resto igual. Está no rascunho: teste e publique com o exame para valer no WhatsApp.',
+      mudancas: [{ tipo: 'trocar', id: 'portal_split', titulo: 'Split de recebíveis (transferência)', antes: padrao.portal_split, depois: padrao.portal_split.replace('Criar o Split até 14h', 'Criar o Split até 13h') }], desfeita: true },
+    { id: 'c3', ts: new Date(NOW - 2 * 3600_000).toISOString(), papel: 'equipe', origem: 'teste', texto: '',
+      correcao: { sessao: 'tdemo', mensagemId: 'r1', lead: '', resposta: 'A aceitação por aproximação depende do modelo da maquininha. Me conta qual é a sua dúvida?', comoDeveria: 'Deveria dizer que sim, aceita aproximação e Pix por QR Code', porque: 'Ela inventou que depende do modelo' } },
+    { id: 'c4', ts: new Date(NOW - 2 * 3600_000 + 11000).toISOString(), papel: 'ia', origem: 'teste', destino: 'nova_informacao', custoUsd: 0.0026,
+      texto: 'Acrescentei uma informação nova sobre as formas de pagamento da maquininha. Está no rascunho: teste e publique com o exame para valer no WhatsApp.',
+      analise: { comoDeveria: 'Aceita, sim! A maquininha aceita pagamento por aproximação e Pix por QR Code.', porque: 'A base não tinha essa informação, então a assistente deduziu uma resposta ("depende do modelo") em vez de responder com o fato.' },
+      mudancas: [{ tipo: 'nova', id: 'extra_demo0001', titulo: 'Formas de pagamento na maquininha', antes: '', depois: 'A maquininha aceita pagamento por aproximação e Pix por QR Code.' }] },
+    { id: 'c5', ts: new Date(NOW - 3600_000).toISOString(), papel: 'equipe', origem: 'base', texto: 'Quero que ela pergunte o nome do cliente antes de tudo.' },
+    { id: 'c6', ts: new Date(NOW - 3600_000 + 6000).toISOString(), papel: 'ia', origem: 'base', destino: 'control_gestao', custoUsd: 0.0008,
+      texto: 'Isso é regra de atendimento (muda a ordem da triagem), então não mexi na base. Nada mudou na base: ficou registrado como pedido para a Control Gestão.' },
+  ],
+  pedidosControlGestao: 1,
   exame: { id: 'exdemo', status: 'aprovado', inicio: new Date(NOW - 3 * 86400_000 - 60_000).toISOString(), fim: new Date(NOW - 3 * 86400_000).toISOString(), nota: 'Caminhos do app atualizados', mudancas: ['portal_beneficiarios'], feitos: 14, total: 14, custoUsd: 0.07, versao: 2, falhas: [] },
 }
 // Laboratório: uma conversa de exemplo

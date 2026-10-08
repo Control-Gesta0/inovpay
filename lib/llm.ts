@@ -5,10 +5,10 @@ import { renderPrompt, trouxeTexto, type ItemId } from './base-core'
 import { CRM_MAP } from './crm-map'
 import { mascarar } from './documento'
 import { addUsage, emptyUsage, type Usage } from './execlog'
-import { checkReply, soUltimaPergunta, type Violation } from './guards'
+import { checkReply, comAvisoPrivacidade, soUltimaPergunta, type Violation } from './guards'
 import type { ChatMsg } from './history'
 import { perguntaEsperada, proximoPasso, respostaDoRoteiro } from './roteiro'
-import { pediuPessoa, perguntouPreco, respondeuPreco, tipoDoTurno } from './tipo'
+import { comRespostaDePreco, pediuPessoa, perguntouPreco, respondeuPreco, tipoDoTurno } from './tipo'
 import { buildTools, runTool, type ToolCtx } from './tools'
 
 /**
@@ -98,6 +98,17 @@ export function repetiuTexto(ctx: Pick<ToolCtx, 'textos' | 'ultimaIa'>, text: st
   return id ? [{ regra: 'repetiu o mesmo texto', trecho: `${id}: a pessoa acabou de receber; responda o que ela disse agora, sem mandar de novo` }] : []
 }
 
+/**
+ * Estorno: o passo a passo da maquininha só serve para venda de HOJE. Sem a pessoa ter dito
+ * quando foi, a assistente pergunta antes (exame de 08/10/2026: às vezes mandava direto).
+ */
+export function passoAPassoCedo(ctx: Pick<ToolCtx, 'textos'>, dados: Record<string, string | undefined> | undefined, text: string, textoLead: string): Violation[] {
+  const passos = ctx.textos?.estorno_passos
+  if (!passos || dados?.venda_de_hoje) return []
+  if (/\b(hoje|ontem|anteontem|semana|m[eê]s passado|dia \d{1,2}|\d{1,2}\/\d{1,2})\b/i.test(textoLead)) return []
+  return trouxeTexto(text, passos) ? [{ regra: 'passo a passo antes de saber se a venda é de hoje', trecho: 'pergunte primeiro: "O estorno é de uma venda feita hoje?"' }] : []
+}
+
 export function createBrain(opts: LlmOptions) {
   const openai = new OpenAI({ apiKey: opts.apiKey })
 
@@ -148,9 +159,11 @@ export function createBrain(opts: LlmOptions) {
   /** Reescreve uma vez se a trava pegou algo; se insistir, sai o texto seguro. */
   async function enforce(ctx: ToolCtx, messages: Msg[], text: string, usage: Usage, handoff: boolean, textoLead: string): Promise<{ text: string; guard: string[] }> {
     const foraDoHorario = ctx.foraDoHorario
-    const tipoDesconhecido = !(await ctx.port.getState()).tipo
+    const st = await ctx.port.getState()
+    const tipoDesconhecido = !st.tipo
     const tipoConhecido = !tipoDesconhecido
-    const v1 = [...checkReply(text, { foraDoHorario, textoLead, handoff, tipoDesconhecido, tipoConhecido }), ...repetiuTexto(ctx, text)]
+    const extra = (t: string) => [...repetiuTexto(ctx, t), ...(handoff ? [] : passoAPassoCedo(ctx, st.dados, t, textoLead))]
+    const v1 = [...checkReply(text, { foraDoHorario, textoLead, handoff, tipoDesconhecido, tipoConhecido }), ...extra(text)]
     if (!v1.length) return { text, guard: [] }
     const fix: Msg[] = [
       ...messages,
@@ -159,7 +172,7 @@ export function createBrain(opts: LlmOptions) {
     ]
     const c = await call(fix, null, usage)
     const text2 = (c.message?.content || '').trim()
-    const v2 = [...checkReply(text2, { foraDoHorario, textoLead, handoff, tipoDesconhecido, tipoConhecido }), ...repetiuTexto(ctx, text2)]
+    const v2 = [...checkReply(text2, { foraDoHorario, textoLead, handoff, tipoDesconhecido, tipoConhecido }), ...extra(text2)]
     if (!v2.length) return { text: text2, guard: v1.map(v => `${v.regra}: ${v.trecho}`) }
     // Só sobrou "mais de uma pergunta": corta as perguntas anteriores em vez de mandar o texto genérico
     if (v2.every(v => v.regra === 'mais de uma pergunta')) {
@@ -191,6 +204,12 @@ export function createBrain(opts: LlmOptions) {
     const st1 = await ctx.port.getState()
     const resp = !pediuPessoa(t.lastLeadText) && !perguntouPreco(t.lastLeadText) ? respostaDoRoteiro(st1, ctx.ultimaIa, t.lastLeadText) : null
     if (resp) await ctx.port.patchState({ dados: { ...(st1.dados || {}), [resp.campo]: resp.valor } })
+    // Pergunta de taxa/preço: o CÓDIGO anota o pedido para a nota da equipe (o modelo às vezes esquecia)
+    const precoNoTurno = perguntouPreco(t.lastLeadText)
+    if (precoNoTurno && !st1.dados?.pedido_extra) {
+      const st2 = await ctx.port.getState()
+      await ctx.port.patchState({ dados: { ...(st2.dados || {}), pedido_extra: t.lastLeadText.trim().slice(0, 300) } })
+    }
     const usage = emptyUsage()
     const toolsUsed: string[] = []
     let handoff = false
@@ -247,7 +266,7 @@ export function createBrain(opts: LlmOptions) {
         }
       }
       const safe = await enforce(ctx, messages, text, usage, handoff, textoLead)
-      return { text: safe.text, toolsUsed, handoff, guard: [...retries, ...safe.guard], usage }
+      return { text: comRespostaDePreco(comAvisoPrivacidade(safe.text, !!ctx.jaPediuDocumento), precoNoTurno && !handoff), toolsUsed, handoff, guard: [...retries, ...safe.guard], usage }
     }
 
     // Ferramentas já mexeram no CRM: nunca deixar a pessoa em silêncio
@@ -255,7 +274,7 @@ export function createBrain(opts: LlmOptions) {
     const text = (final.message?.content || '').trim()
     if (!text) return handoff ? { text: CRM_MAP.textos.seguroFinal, toolsUsed, handoff, guard: ['vazio: texto seguro'], usage } : null
     const safe = await enforce(ctx, messages, text, usage, handoff, textoLead)
-    return { text: safe.text, toolsUsed, handoff, guard: [...retries, ...safe.guard], usage }
+    return { text: comRespostaDePreco(comAvisoPrivacidade(safe.text, !!ctx.jaPediuDocumento), precoNoTurno && !handoff), toolsUsed, handoff, guard: [...retries, ...safe.guard], usage }
   }
 
   return { generateReply }

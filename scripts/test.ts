@@ -268,6 +268,34 @@ async function main() {
   eq('repetiu o passo a passo: trava', repetiuTexto({ textos: tp, ultimaIa: tp.estorno_passos + '\nConseguiu concluir?' }, tp.estorno_passos).length, 1)
   eq('primeira vez: sem trava', repetiuTexto({ textos: tp, ultimaIa: 'O estorno é de uma venda feita hoje?' }, tp.estorno_passos).length, 0)
 
+  // ---------- Curador: trocas exatas, informação nova, sem duplicar ----------
+  const cur = await import('../lib/curador')
+  eq('troca exata', bc.aplicarTroca('Criar até 14h\nOutra linha', 'até 14h', 'até 13h'), { texto: 'Criar até 13h\nOutra linha' })
+  eq('troca de trecho que não existe', !!bc.aplicarTroca('abc', 'xyz', '1').erro, true)
+  eq('troca ambígua (aparece 2 vezes)', !!bc.aplicarTroca('14h e 14h', '14h', '13h').erro, true)
+  const ap = cur.aplicar({ mudancas: [{ tipo: 'trocar', id: 'portal_split', de: 'Criar o Split até 14h', para: 'Criar o Split até 13h' }, { tipo: 'nova', titulo: 'Pix e aproximação', texto: 'A maquininha aceita Pix por QR Code e aproximação.' }] }, tp, [])
+  eq('curador aplica troca e informação nova', [ap.erros, ap.textos.portal_split.includes('até 13h'), ap.extras.length, ap.mudancas.map(m => m.tipo)], [[], true, 1, ['trocar', 'nova']])
+  eq('curador não deixa taxa entrar', cur.aplicar({ mudancas: [{ tipo: 'nova', titulo: 'Taxa', texto: 'A taxa do débito é 1,2%.' }] }, tp, []).erros.length, 1)
+  eq('curador não duplica informação', cur.aplicar({ mudancas: [{ tipo: 'nova', titulo: 'Aceita Pix', texto: 'A maquininha aceita Pix por QR Code e aproximação.' }] }, tp, ap.extras).erros.length, 1)
+  eq('curador não quebra o {quando} do aviso', cur.aplicar({ mudancas: [{ tipo: 'trocar', id: 'aviso_fora', de: 'continua {quando}', para: 'continua amanhã' }] }, tp, []).erros.length, 1)
+  const comExtra = bc.renderPrompt(tpl, tp, ap.extras)
+  eq('informação nova vira a seção 11 do prompt', [comExtra.includes('## 11. Informações cadastradas pela equipe da InovPay'), comExtra.includes('**Pix e aproximação**\nA maquininha aceita Pix'), bc.renderPrompt(tpl, tp, []) === renderizado], [true, true, true])
+
+  const { passoAPassoCedo } = await import('../lib/llm')
+  eq('passo a passo sem saber se é de hoje: trava', passoAPassoCedo({ textos: tp }, {}, tp.estorno_passos, 'preciso estornar uma venda').length, 1)
+  eq('pessoa disse que foi hoje: pode mandar', passoAPassoCedo({ textos: tp }, {}, tp.estorno_passos, 'quero estornar uma venda que fiz hoje').length, 0)
+  eq('venda_de_hoje anotada: pode mandar', passoAPassoCedo({ textos: tp }, { venda_de_hoje: 'sim' }, tp.estorno_passos, 'preciso estornar').length, 0)
+
+  eq('pediu CPF sem o aviso: código acrescenta', gd.comAvisoPrivacidade('Pra eu te ajudar, me passa o CPF ou CNPJ cadastrado?', false), 'Pra eu te ajudar, me passa o CPF ou CNPJ cadastrado? ' + gd.AVISO_PRIVACIDADE)
+  eq('já tem o aviso: não repete', gd.comAvisoPrivacidade('Me passa o CNPJ? Ele é usado só pra este atendimento, conforme a nossa Política de Privacidade.', false).match(/Privacidade/g)?.length, 1)
+  eq('segundo pedido (inválido): sem aviso de novo', gd.comAvisoPrivacidade('Hmm, esse número não bateu aqui. Confere pra mim e me manda de novo o CPF ou CNPJ cadastrado?', true).includes('Privacidade'), false)
+  eq('não pede documento: não mexe', gd.comAvisoPrivacidade('Já gravei seu CNPJ. Qual é o assunto?', false), 'Já gravei seu CNPJ. Qual é o assunto?')
+
+  const tp2 = await import('../lib/tipo')
+  eq('taxa sem resposta: frase depois do cumprimento', tp2.comRespostaDePreco('Oi! Seja bem-vindo(a) à InovPay. Você já é cliente da InovPay?', true), 'Oi! Seja bem-vindo(a) à InovPay. ' + tp2.FRASE_PRECO + ' Você já é cliente da InovPay?')
+  eq('taxa já respondida: não mexe', tp2.comRespostaDePreco('A equipe passa as taxas certinho. Como funciona o seu negócio?', true), 'A equipe passa as taxas certinho. Como funciona o seu negócio?')
+  eq('sem pergunta de taxa: não mexe', tp2.comRespostaDePreco('Como funciona o seu negócio?', false), 'Como funciona o seu negócio?')
+
   console.log(falhas ? `\n❌ ${falhas} falha(s)` : '\n✅ tudo certo')
   process.exit(falhas ? 1 : 0)
 }

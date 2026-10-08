@@ -140,7 +140,25 @@ export interface Exame {
   erro?: string
 }
 
+export interface MudancaBase { tipo: 'trocar' | 'nova' | 'remover'; id: string; titulo: string; antes: string; depois: string }
+
+export interface MsgConversa {
+  id: string
+  ts: string
+  papel: 'equipe' | 'ia'
+  texto: string
+  origem?: 'base' | 'teste'
+  correcao?: { sessao: string; mensagemId: string; lead: string; resposta: string; comoDeveria: string; porque: string }
+  analise?: { comoDeveria: string; porque: string }
+  destino?: 'base' | 'nova_informacao' | 'control_gestao' | 'recusado' | 'pergunta' | 'nenhum'
+  mudancas?: MudancaBase[]
+  desfeita?: boolean
+  custoUsd?: number | null
+}
+
 export interface BaseEstado {
+  conversa: MsgConversa[]
+  pedidosControlGestao: number
   versao: number
   publicadoEm: string | null
   nota: string | null

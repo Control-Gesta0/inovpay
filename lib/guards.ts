@@ -119,3 +119,16 @@ export function mascararPII(texto: string): string {
     .replace(/(?<!\d)\d{11}(?!\d)/g, '[cpf]')
     .slice(0, 1500)
 }
+
+/** Frase do aviso de privacidade (LGPD) que acompanha o primeiro pedido de CPF/CNPJ. */
+export const AVISO_PRIVACIDADE = 'Ele é usado só pra este atendimento, conforme a nossa Política de Privacidade.'
+
+/**
+ * Pediu o CPF/CNPJ pela primeira vez sem o aviso? O código acrescenta (decisão da InovPay:
+ * aviso uma vez ao pedir o documento; o modelo esquecia em ~1 de 40 conversas, exame de 08/10/2026).
+ */
+export function comAvisoPrivacidade(texto: string, jaPediuDocumento: boolean): string {
+  if (jaPediuDocumento || /privacidade/i.test(texto)) return texto
+  const pede = /\b(me passa|me manda|manda|informe|informa|envie|qual [eé]|preciso d[oe])\b[^.?!\n]{0,60}\b(cpf|cnpj)\b/i.test(texto)
+  return pede ? `${texto.trim()} ${AVISO_PRIVACIDADE}` : texto
+}

@@ -1,17 +1,22 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { candidata, descartarRascunho, lerHistorico, lerRascunho, lerVigente, padrao, salvarNoRascunho, voltarPara } from '../lib/base'
-import { GRUPOS, ITENS, ehItem, validarTexto } from '../lib/base-core'
+import { candidata, descartarRascunho, lerHistorico, lerRascunho, lerVigente, padrao, voltarPara } from '../lib/base'
+import { GRUPOS, ITENS, ehExtraId, ehItem, validarExtra, validarTexto } from '../lib/base-core'
 import { centralAutorizada, corpo } from '../lib/central-auth'
+import { contarPedidosControl, desfazer, lerConversa, pedir, type Correcao } from '../lib/curador'
 import { iniciarExame, lerExame } from '../lib/exame'
+import { lerSessao } from '../lib/teste'
 
 /**
- * Base de dados da Central (header x-central-secret).
- *   GET                       → itens (padrão, no ar, rascunho), versão, histórico e o último exame
- *   GET  ?exame=<id>          → andamento de um exame
- *   POST {acao:'salvar', id, texto}      → grava no rascunho (nada muda no WhatsApp)
- *   POST {acao:'descartar', id?}         → tira do rascunho (sem id: tudo)
- *   POST {acao:'publicar', nota}         → roda o exame com o rascunho; só publica se passar
- *   POST {acao:'voltar', versao}         → volta para uma versão anterior
+ * Base de dados da Central (header x-central-secret). A equipe NÃO edita texto:
+ * pede em português e a IA (curador, token do cliente) muda o rascunho.
+ *   GET                                   → textos (padrão, no ar, rascunho), conversa, versões, último exame
+ *   GET  ?exame=<id>                      → andamento de um exame
+ *   POST {acao:'pedir', texto}            → a IA lê o pedido e muda o rascunho (ou explica por que não)
+ *   POST {acao:'corrigir', sessao, mensagem, comoDeveria, porque} → correção de uma resposta do laboratório
+ *   POST {acao:'desfazer', mensagem}      → desfaz o que a IA mudou naquela resposta
+ *   POST {acao:'descartar', id?}          → tira do rascunho (sem id: tudo)
+ *   POST {acao:'publicar', nota}          → roda o exame com o rascunho; só publica se passar
+ *   POST {acao:'voltar', versao}          → volta para uma versão anterior
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!centralAutorizada(req)) return res.status(401).json({ error: 'unauthorized' })
@@ -24,17 +29,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'use GET ou POST' })
     const b = corpo(req)
     const acao = String(b.acao || '')
-    if (acao === 'salvar') {
-      const id = String(b.id || '')
-      if (!ehItem(id)) return res.status(400).json({ error: 'item desconhecido' })
-      const texto = String(b.texto ?? '').replace(/\r\n/g, '\n')
-      await salvarNoRascunho(id, texto)
-      return res.status(200).json({ ok: true, problemas: validarTexto(id, texto), ...(await estado()) })
+    if (acao === 'pedir') {
+      const r = await pedir(String(b.texto || ''))
+      if (r.erro) return res.status(409).json({ erro: r.erro })
+      return res.status(200).json({ ok: true, resposta: r.ia, ...(await estado()) })
+    }
+    if (acao === 'corrigir') {
+      const c = await montarCorrecao(String(b.sessao || ''), String(b.mensagem || ''), String(b.comoDeveria || ''), String(b.porque || ''))
+      if ('erro' in c) return res.status(400).json({ erro: c.erro })
+      const r = await pedir('', c)
+      if (r.erro) return res.status(409).json({ erro: r.erro })
+      return res.status(200).json({ ok: true, resposta: r.ia, ...(await estado()) })
+    }
+    if (acao === 'desfazer') {
+      const r = await desfazer(String(b.mensagem || ''))
+      if (!r.ok) return res.status(409).json({ erro: r.erro })
+      return res.status(200).json({ ok: true, ...(await estado()) })
     }
     if (acao === 'descartar') {
       const id = b.id ? String(b.id) : undefined
-      if (id && !ehItem(id)) return res.status(400).json({ error: 'item desconhecido' })
-      await descartarRascunho(id as never)
+      if (id && !ehItem(id) && !ehExtraId(id)) return res.status(400).json({ error: 'item desconhecido' })
+      await descartarRascunho(id)
       return res.status(200).json({ ok: true, ...(await estado()) })
     }
     if (acao === 'publicar') {
@@ -46,29 +61,69 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!v) return res.status(404).json({ error: 'versão não encontrada no histórico' })
       return res.status(200).json({ ok: true, ...(await estado()) })
     }
-    return res.status(400).json({ error: 'acao inválida (salvar | descartar | publicar | voltar)' })
+    return res.status(400).json({ error: 'acao inválida (pedir | corrigir | desfazer | descartar | publicar | voltar)' })
   } catch (e) {
     return res.status(500).json({ error: (e instanceof Error ? e.message : String(e)).slice(0, 300) })
   }
 }
 
+/** Contexto da correção: a conversa do laboratório até a resposta marcada (travada, a equipe não digita isso). */
+async function montarCorrecao(sessao: string, mensagemId: string, comoDeveria: string, porque: string): Promise<Correcao | { erro: string }> {
+  if (!/^[\w-]{8,64}$/.test(sessao)) return { erro: 'sessão inválida' }
+  if (!comoDeveria.trim() && !porque.trim()) return { erro: 'Diga como deveria ser ou por que está errado.' }
+  const s = await lerSessao(sessao)
+  if (!s) return { erro: 'A conversa de teste expirou (fica 6 horas). Refaça o teste e corrija de novo.' }
+  const i = s.history.findIndex(m => m.id === mensagemId)
+  if (i < 0 || s.history[i].dir !== 'out') return { erro: 'Mensagem não encontrada nesta conversa de teste.' }
+  const antes = s.history.slice(Math.max(0, i - 8), i)
+  const d = s.detalhes[mensagemId]
+  const contexto = [
+    `(simulação: ${s.opcoes.perfil === 'com_documento' ? 'CPF/CNPJ já no cadastro' : 'contato sem cadastro'}, ${s.opcoes.fora ? 'fora do horário' : 'dentro do horário'}, textos ${s.opcoes.versao === 'rascunho' ? 'do rascunho' : 'no ar'})`,
+    ...antes.map(m => `${m.dir === 'in' ? 'CLIENTE' : 'ASSISTENTE'}: ${m.text}`),
+    d ? `(nessa resposta a assistente usou: ${d.tools.join(', ') || 'nenhuma ferramenta'}${d.guard.length ? `; travas: ${d.guard.join(' | ')}` : ''})` : '',
+  ].filter(Boolean).join('\n')
+  return {
+    sessao, mensagemId, lead: contexto.slice(0, 6000), resposta: s.history[i].text.slice(0, 3000),
+    comoDeveria: comoDeveria.trim().slice(0, 1500), porque: porque.trim().slice(0, 1500),
+  }
+}
+
 async function estado() {
-  const [vig, rasc, hist, exame, c] = await Promise.all([lerVigente(), lerRascunho(), lerHistorico(), lerExame(), candidata()])
+  const [vig, rasc, hist, exame, c, conversa, pedidos] = await Promise.all([
+    lerVigente(), lerRascunho(), lerHistorico(), lerExame(), candidata(), lerConversa(100), contarPedidosControl(),
+  ])
   const base = padrao()
+  const extrasNoAr = vig.extras || []
   return {
     versao: vig.versao,
     publicadoEm: vig.publicadoEm,
     nota: vig.nota || null,
     rascunhoEm: rasc.atualizadoEm,
-    grupos: GRUPOS,
-    itens: ITENS.map(i => ({
-      id: i.id, grupo: i.grupo, titulo: i.titulo, ajuda: i.ajuda,
-      padrao: base[i.id],
-      noAr: c.vigente[i.id],
-      rascunho: rasc.textos[i.id] ?? null,
-      problemas: rasc.textos[i.id] !== undefined ? validarTexto(i.id, rasc.textos[i.id]!) : [],
-    })),
+    grupos: { ...GRUPOS, extras: 'Informações acrescentadas pela equipe' },
+    itens: [
+      ...ITENS.map(i => ({
+        id: i.id, grupo: i.grupo as string, titulo: i.titulo, ajuda: i.ajuda,
+        padrao: base[i.id],
+        noAr: c.vigente[i.id],
+        rascunho: rasc.textos[i.id] ?? null,
+        problemas: rasc.textos[i.id] !== undefined ? validarTexto(i.id, rasc.textos[i.id]!) : [],
+      })),
+      // informações acrescentadas: as que estão no ar e as do rascunho (novas, mudadas ou removidas)
+      ...[...new Set([...extrasNoAr.map(e => e.id), ...c.extras.map(e => e.id)])].map(id => {
+        const ar = extrasNoAr.find(e => e.id === id)
+        const ra = c.extras.find(e => e.id === id)
+        const mudou = !ar || !ra || ar.texto !== ra.texto || ar.titulo !== ra.titulo
+        return {
+          id, grupo: 'extras', titulo: (ra || ar)!.titulo,
+          ajuda: !ra ? 'Será removida quando o rascunho for publicado.' : !ar ? 'Informação nova: entra quando o rascunho for publicado.' : 'A assistente usa quando alguém pergunta sobre isto.',
+          padrao: '', noAr: ar?.texto || '', rascunho: mudou ? (ra?.texto ?? '') : null,
+          problemas: ra && mudou ? validarExtra(ra) : [],
+        }
+      }),
+    ],
     alteracoes: c.mudou,
+    conversa,
+    pedidosControlGestao: pedidos,
     historico: hist.map(h => ({ versao: h.versao, publicadoEm: h.publicadoEm, nota: h.nota || null, mudancas: h.mudancas || [] })),
     exame,
   }

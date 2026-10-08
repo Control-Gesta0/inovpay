@@ -32,6 +32,11 @@ export const ITENS = [
 export type ItemId = (typeof ITENS)[number]['id']
 export type Textos = Record<ItemId, string>
 
+/** Informação nova que a equipe pediu para a IA acrescentar (vira a seção 11 do prompt). */
+export interface Extra { id: string; titulo: string; texto: string }
+
+export const ehExtraId = (id: string) => /^extra_[a-z0-9]{4,16}$/.test(id)
+
 export const GRUPOS: Record<string, string> = {
   portal: 'Textos do portal e do app',
   suporte: 'Suporte',
@@ -86,8 +91,24 @@ export function textosPadrao(template: string): Textos {
   return out as Textos
 }
 
-/** Prompt final: cada bloco marcado vira o texto vigente (ou o padrão), sem os marcadores. */
-export function renderPrompt(template: string, textos: Partial<Textos> = {}): string {
+/** Seção com as informações acrescentadas pela equipe (só existe se houver alguma). */
+export function secaoExtras(extras: Extra[]): string {
+  if (!extras.length) return ''
+  return [
+    '',
+    '',
+    '## 11. Informações cadastradas pela equipe da InovPay',
+    'Use quando a pessoa perguntar sobre isto. Responda com as suas palavras, em poucas frases, sem inventar além do que está aqui. Taxa, preço e condição comercial continuam com a equipe (seção 2).',
+    ...extras.map(e => `\n**${e.titulo}**\n${e.texto}`),
+  ].join('\n')
+}
+
+/** Prompt final: cada bloco marcado vira o texto vigente (ou o padrão), sem os marcadores; extras no fim. */
+export function renderPrompt(template: string, textos: Partial<Textos> = {}, extras: Extra[] = []): string {
+  return renderBlocos(template, textos).replace(/\s*$/, m => (extras.length ? '' : m)) + (extras.length ? secaoExtras(extras) + '\n' : '')
+}
+
+function renderBlocos(template: string, textos: Partial<Textos>): string {
   // a quebra de linha colada no marcador é do marcador (bloco em linha própria): sai junto
   return template.replace(BLOCO, (_t, id: string, _nl1: string, padrao: string) => {
     if (!ehItem(id)) throw new Error(`marcador desconhecido no prompt: base:${id}`)
@@ -117,13 +138,15 @@ const MAX = 2500
 
 /** Trava em código antes do exame: o que a assistente nunca pode mandar não entra na base. */
 export function validarTexto(id: string, texto: string): string[] {
-  if (!ehItem(id)) return ['item desconhecido']
+  const extra = ehExtraId(id)
+  if (!ehItem(id) && !extra) return ['item desconhecido']
   const t = String(texto ?? '')
   const out: string[] = []
+  const max = extra ? 1500 : MAX
   if (!t.trim()) out.push('O texto está vazio.')
-  if (t.length > MAX) out.push(`O texto passou de ${MAX} caracteres (tem ${t.length}).`)
-  if (/<!--|-->|\{\{/.test(t)) out.push('O texto tem marcação de sistema (<!--, --> ou {{).')
-  const m = meta(id) as { exige?: string }
+  if (t.length > max) out.push(`O texto passou de ${max} caracteres (tem ${t.length}).`)
+  if (/<!--|-->|\{\{|^#+ /m.test(t)) out.push('O texto tem marcação de sistema (<!--, -->, {{ ou título com #).')
+  const m = (extra ? {} : meta(id as ItemId)) as { exige?: string }
   if (m.exige && t.split(m.exige).length - 1 !== 1) out.push(`O texto precisa ter ${m.exige} uma vez (é onde entra quando a equipe volta).`)
   if (id.startsWith('enc_') && /\?/.test(t)) out.push('Encerramento não pode ter pergunta: depois da passagem quem responde é a equipe.')
   for (const { regra, re } of REGRAS) {
@@ -140,6 +163,26 @@ export function validarTexto(id: string, texto: string): string[] {
     out.push(`O texto ${porque[regra] || regra}: "${achou[0]}".`)
   }
   return out
+}
+
+export function validarExtra(e: Extra): string[] {
+  const out: string[] = []
+  if (!ehExtraId(e.id)) out.push('id inválido')
+  if (!e.titulo?.trim() || e.titulo.length > 80) out.push('O título precisa ter de 1 a 80 caracteres.')
+  if (/[*#<>]/.test(e.titulo || '')) out.push('O título não pode ter *, #, < ou >.')
+  return [...out, ...validarTexto(e.id, e.texto)]
+}
+
+/**
+ * Troca exata feita pela IA: "de" precisa aparecer UMA vez no texto atual.
+ * É isso que garante que a IA muda só o trecho pedido (o resto fica idêntico).
+ */
+export function aplicarTroca(texto: string, de: string, para: string): { texto?: string; erro?: string } {
+  if (!de) return { erro: 'trecho "de" vazio' }
+  const n = texto.split(de).length - 1
+  if (n === 0) return { erro: `o trecho "${de.slice(0, 80)}" não existe no texto atual (copie exatamente, com emojis e pontuação)` }
+  if (n > 1) return { erro: `o trecho "${de.slice(0, 80)}" aparece ${n} vezes; use um trecho maior, que apareça uma vez só` }
+  return { texto: texto.replace(de, () => para) }
 }
 
 /** Diferença entre dois conjuntos de textos (ids que mudaram). */

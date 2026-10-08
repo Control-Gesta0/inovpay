@@ -2,17 +2,19 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, BookOpenText, CheckCircle2, FlaskConical, History, ListChecks, Loader2, Pencil, RotateCcw, ShieldCheck, Undo2, Upload, XCircle } from 'lucide-react'
+import { AlertTriangle, BookOpenText, Bot, CheckCircle2, FlaskConical, History, ListChecks, Loader2, MessagesSquare, Pencil, Send, ShieldCheck, Undo2, Upload, UserRound, XCircle } from 'lucide-react'
 import FocusNav, { type FocusItem } from '@/components/FocusNav'
 import { PageIntro, SectionTitle } from '@/components/ProductUI'
 import RefreshButton from '@/components/RefreshButton'
-import { dataHora } from '@/lib/format'
-import type { BaseEstado, BaseItem, Exame } from '@/lib/types'
+import MudancasBase from '@/components/MudancasBase'
+import { brl, dataHora } from '@/lib/format'
+import type { BaseEstado, BaseItem, Exame, MsgConversa } from '@/lib/types'
 import ComoConduz from './ComoConduz'
 
-type View = 'textos' | 'conduz' | 'historico'
+type View = 'conversa' | 'textos' | 'conduz' | 'historico'
 
 const VIEWS: FocusItem<View>[] = [
+  { id: 'conversa', label: 'Pedir mudança', description: 'Diga à IA o que mudar', icon: MessagesSquare },
   { id: 'textos', label: 'Textos', description: 'O que ela manda e consulta', icon: BookOpenText },
   { id: 'conduz', label: 'Como ela conduz', description: 'Roteiro e travas (leitura)', icon: ListChecks },
   { id: 'historico', label: 'Versões', description: 'O que foi publicado', icon: History },
@@ -36,7 +38,7 @@ const CENARIO: Record<string, string> = {
 }
 
 export default function Base() {
-  const [view, setView] = useState<View>('textos')
+  const [view, setView] = useState<View>('conversa')
   const [dados, setDados] = useState<(BaseEstado & { demo?: boolean }) | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [exame, setExame] = useState<Exame | null>(null)
@@ -83,11 +85,15 @@ export default function Base() {
     if (exame?.status === 'rodando') acompanhar(exame.id)
   }, [exame, acompanhar])
 
-  const post = async (corpo: Record<string, unknown>) => {
-    const r = await fetch('/api/base', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo) })
-    const d = await r.json()
-    if (d.itens) setDados(d)
-    return { ok: r.ok, d }
+  const post: Post = async (corpo) => {
+    try {
+      const r = await fetch('/api/base', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo) })
+      const d = await r.json()
+      if (d.itens) setDados(d)
+      return { ok: r.ok, d }
+    } catch (e) {
+      return { ok: false, d: { erro: `Não consegui falar com o agente: ${e instanceof Error ? e.message : String(e)}` } }
+    }
   }
 
   const publicar = async () => {
@@ -111,9 +117,9 @@ export default function Base() {
 
   return (
     <div className="space-y-8">
-      <PageIntro eyebrow="BASE DE DADOS" title="O que a assistente" accent="sabe." description="Os textos que ela manda e consulta. Edite à vontade: nada muda no WhatsApp até passar no exame automático." action={<RefreshButton />} />
+      <PageIntro eyebrow="BASE DE DADOS" title="O que a assistente" accent="sabe." description="Os textos que ela manda e consulta. Para mudar ou acrescentar, peça em português: a IA faz a mudança e nada vale no WhatsApp antes do exame automático." action={<RefreshButton />} />
 
-      {dados?.demo && <p className="text-[12px] text-warning">Modo demonstração: os textos são os de verdade, mas salvar e publicar precisam do agente.</p>}
+      {dados?.demo && <p className="text-[12px] text-warning">Modo demonstração: os textos são os de verdade, mas pedir mudança e publicar precisam do agente.</p>}
       {erro && <div className="panel p-5 text-[13px] text-warning">Não consegui ler a base: {erro}</div>}
 
       <section className="panel overflow-hidden">
@@ -124,12 +130,12 @@ export default function Base() {
           <div className="min-w-0 flex-1">
             <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-cyan">{dados ? `Versão ${dados.versao} no ar` : 'Carregando'}{dados?.publicadoEm ? ` · publicada em ${dataHora(dados.publicadoEm)}` : dados ? ' · textos originais' : ''}</div>
             <h2 className="font-impact font-bold text-[18px] md:text-[20px] text-ink mt-2">
-              {!dados ? 'Lendo a base…' : alteracoes ? `${alteracoes} ${alteracoes === 1 ? 'texto editado espera' : 'textos editados esperam'} o exame para valer.` : 'Tudo o que está aqui é o que a assistente usa agora.'}
+              {!dados ? 'Lendo a base…' : alteracoes ? `${alteracoes} ${alteracoes === 1 ? 'mudança feita pela IA espera' : 'mudanças feitas pela IA esperam'} o exame para valer.` : 'Tudo o que está aqui é o que a assistente usa agora.'}
             </h2>
             <p className="text-[12.5px] text-body-mid leading-relaxed mt-1.5">
               {alteracoes
                 ? 'Teste no laboratório com o rascunho e, quando estiver bom, publique. O exame roda os 14 cenários de atendimento com os textos novos (leva menos de 1 minuto) e só publica se todos passarem. Cenário que falhar roda mais 2 vezes e precisa passar nas duas.'
-                : 'Para mudar um texto, clique em Editar. A edição fica no rascunho até você publicar.'}
+                : 'Para mudar um texto ou acrescentar uma informação, peça em Pedir mudança. A IA escreve a mudança no rascunho; ela só vale depois de publicar.'}
             </p>
           </div>
         </div>
@@ -153,6 +159,8 @@ export default function Base() {
       </section>
 
       <FocusNav items={VIEWS} value={view} onChange={setView} label="Áreas da base de dados" />
+
+      {view === 'conversa' && <Conversa dados={dados} post={post} bloqueado={publicando || !!dados?.demo} />}
 
       {view === 'textos' && (
         <div className="space-y-8">
@@ -191,7 +199,7 @@ export default function Base() {
                   <div className="text-[11.5px] text-body-muted mt-0.5">{h.publicadoEm ? `${dataHora(h.publicadoEm)} · ${h.nota || 'sem nota'}` : 'textos originais da implantação'}</div>
                 </div>
                 <button type="button" disabled={publicando || !!dados?.demo}
-                  onClick={() => { if (confirm(`Voltar para a versão ${h.versao}? Ela passa a valer no WhatsApp agora.`)) post({ acao: 'voltar', versao: h.versao }) }}
+                  onClick={() => { if (confirm(`Voltar para a versão ${h.versao}? Ela passa a valer no WhatsApp agora.`)) void post({ acao: 'voltar', versao: h.versao }) }}
                   className="inline-flex items-center gap-1.5 text-[11.5px] text-cyan disabled:opacity-40"><Undo2 size={12} /> Voltar para esta</button>
               </div>
             ))}
@@ -203,64 +211,39 @@ export default function Base() {
   )
 }
 
-function Item({ item, post, bloqueado }: { item: BaseItem; post: (c: Record<string, unknown>) => Promise<{ ok: boolean; d: { problemas?: string[]; error?: string } }>; bloqueado: boolean }) {
-  const [editando, setEditando] = useState(false)
-  const [texto, setTexto] = useState('')
-  const [salvando, setSalvando] = useState(false)
-  const [erro, setErro] = useState<string | null>(null)
-  const atual = item.rascunho ?? item.noAr
-  const editadoNoAr = item.noAr !== item.padrao
-  const linhas = Math.min(18, Math.max(4, atual.split('\n').length + 1))
+type Post = (c: Record<string, unknown>) => Promise<{ ok: boolean; d: { erro?: string; error?: string; resposta?: MsgConversa; exame?: Exame } }>
 
-  const salvar = async (valor: string) => {
-    setSalvando(true); setErro(null)
-    const { ok, d } = await post({ acao: 'salvar', id: item.id, texto: valor })
-    setSalvando(false)
-    if (!ok) { setErro(d.error || 'Não salvou.'); return }
-    setEditando(false)
-  }
-
+/** Texto da base, só leitura: quem muda é a IA, a pedido da equipe. */
+function Item({ item, post, bloqueado }: { item: BaseItem; post: Post; bloqueado: boolean }) {
+  const noRascunho = item.rascunho !== null
+  const removido = noRascunho && item.rascunho === '' && item.grupo === 'extras'
+  const atual = noRascunho ? item.rascunho! : item.noAr
+  const editadoNoAr = item.grupo !== 'extras' && item.noAr !== item.padrao
   return (
-    <article className={`panel overflow-hidden ${item.rascunho !== null ? 'border-warning/30' : ''}`}>
+    <article className={`panel overflow-hidden ${noRascunho ? 'border-warning/30' : ''}`}>
       <div className="px-5 pt-4 pb-3 flex items-start gap-3 flex-wrap">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-[14px] font-medium text-ink">{item.titulo}</h3>
-            {item.rascunho !== null && <span className="font-mono text-[8.5px] tracking-[0.1em] px-1.5 py-0.5 rounded border border-warning/40 text-warning">RASCUNHO</span>}
-            {item.rascunho === null && editadoNoAr && <span className="font-mono text-[8.5px] tracking-[0.1em] px-1.5 py-0.5 rounded border border-cyan/40 text-cyan">EDITADO PELA EQUIPE</span>}
+            {noRascunho && <span className="font-mono text-[8.5px] tracking-[0.1em] px-1.5 py-0.5 rounded border border-warning/40 text-warning">{removido ? 'SAI NO RASCUNHO' : item.noAr ? 'RASCUNHO' : 'NOVA NO RASCUNHO'}</span>}
+            {!noRascunho && editadoNoAr && <span className="font-mono text-[8.5px] tracking-[0.1em] px-1.5 py-0.5 rounded border border-cyan/40 text-cyan">ALTERADO PELA EQUIPE</span>}
           </div>
           <p className="text-[11.5px] text-body-muted leading-relaxed mt-1">{item.ajuda}</p>
         </div>
-        {!editando && (
-          <div className="flex items-center gap-3 shrink-0">
-            {item.rascunho !== null && <button type="button" disabled={bloqueado} onClick={() => post({ acao: 'descartar', id: item.id })} className="inline-flex items-center gap-1 text-[11.5px] text-body-faint hover:text-ink disabled:opacity-40"><XCircle size={12} /> descartar</button>}
-            {item.rascunho === null && editadoNoAr && <button type="button" disabled={bloqueado} onClick={() => salvar(item.padrao)} className="inline-flex items-center gap-1 text-[11.5px] text-body-faint hover:text-ink disabled:opacity-40"><RotateCcw size={12} /> texto original</button>}
-            <button type="button" disabled={bloqueado} onClick={() => { setTexto(atual); setEditando(true) }} className="inline-flex items-center gap-1.5 text-[12px] text-cyan disabled:opacity-40"><Pencil size={12} /> Editar</button>
-          </div>
+        {noRascunho && (
+          <button type="button" disabled={bloqueado} onClick={() => post({ acao: 'descartar', id: item.id })} className="inline-flex items-center gap-1 text-[11.5px] text-body-faint hover:text-ink disabled:opacity-40 shrink-0"><XCircle size={12} /> descartar do rascunho</button>
         )}
       </div>
       <div className="px-5 pb-5">
-        {editando ? (
-          <div className="space-y-3">
-            <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={linhas} className="campo w-full rounded-[8px] px-3.5 py-3 text-[13px] leading-relaxed font-space" />
-            <div className="flex items-center gap-3 flex-wrap">
-              <button type="button" onClick={() => salvar(texto)} disabled={salvando || !texto.trim()} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-[8px] border border-cyan/30 bg-cyan/[0.12] text-cyan text-[12px] font-medium disabled:opacity-40">
-                {salvando ? <Loader2 size={12} className="animate-spin" /> : null} Salvar no rascunho
-              </button>
-              <button type="button" onClick={() => { setEditando(false); setErro(null) }} className="text-[12px] text-body-muted hover:text-ink">Cancelar</button>
-              <span className="text-[10.5px] text-body-faint">Fica no rascunho: o WhatsApp só muda depois do exame.</span>
-            </div>
-            {erro && <p className="text-[12px] text-warning">{erro}</p>}
-          </div>
-        ) : (
-          <div className="surface-alt rounded-[8px] px-4 py-3 text-[12.5px] leading-relaxed text-ink whitespace-pre-wrap break-words">{atual}</div>
-        )}
-        {item.rascunho !== null && item.problemas.length > 0 && (
+        {removido
+          ? <div className="surface-alt rounded-[8px] px-4 py-3 text-[12.5px] leading-relaxed text-body-mid whitespace-pre-wrap break-words line-through">{item.noAr}</div>
+          : <div className="surface-alt rounded-[8px] px-4 py-3 text-[12.5px] leading-relaxed text-ink whitespace-pre-wrap break-words">{atual}</div>}
+        {noRascunho && item.problemas.length > 0 && (
           <ul className="mt-3 space-y-1">
             {item.problemas.map(p => <li key={p} className="text-[11.5px] text-warning flex gap-2"><AlertTriangle size={12} className="shrink-0 mt-0.5" />{p}</li>)}
           </ul>
         )}
-        {item.rascunho !== null && !editando && (
+        {noRascunho && item.noAr && !removido && (
           <details className="mt-3 group">
             <summary className="list-none cursor-pointer text-[11px] text-body-faint hover:text-body-mid">ver o texto que está no ar ▷</summary>
             <div className="mt-2 rounded-[8px] border border-line-soft px-4 py-3 text-[12px] leading-relaxed text-body-mid whitespace-pre-wrap break-words">{item.noAr}</div>
@@ -268,6 +251,115 @@ function Item({ item, post, bloqueado }: { item: BaseItem; post: (c: Record<stri
         )}
       </div>
     </article>
+  )
+}
+
+const EXEMPLOS = [
+  'O split D+0 agora pode ser criado até 13h',
+  'Acrescenta que a maquininha aceita Pix por QR Code',
+  'O encerramento do suporte está frio, deixa mais acolhedor',
+  'Tira a informação sobre o horário de sábado',
+]
+
+const DESTINO: Record<string, { rotulo: string; cor: string }> = {
+  base: { rotulo: 'TEXTO ALTERADO NO RASCUNHO', cor: '#06b6d4' },
+  nova_informacao: { rotulo: 'INFORMAÇÃO NO RASCUNHO', cor: '#06b6d4' },
+  control_gestao: { rotulo: 'PEDIDO PARA A CONTROL GESTÃO', cor: '#a78bfa' },
+  recusado: { rotulo: 'NÃO ENTRA NA BASE', cor: '#f59e0b' },
+  pergunta: { rotulo: 'PRECISA DE MAIS DETALHE', cor: '#737373' },
+  nenhum: { rotulo: 'NADA MUDOU', cor: '#737373' },
+}
+
+/** Pedir mudança: a conversa da equipe com a IA que cuida da base (com o histórico). */
+function Conversa({ dados, post, bloqueado }: { dados: (BaseEstado & { demo?: boolean }) | null; post: Post; bloqueado: boolean }) {
+  const [texto, setTexto] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [desfazendo, setDesfazendo] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const fim = useRef<HTMLDivElement>(null)
+  const msgs = dados?.conversa || []
+
+  useEffect(() => { fim.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [msgs.length, enviando])
+
+  const enviar = async (t = texto) => {
+    const pedido = t.trim()
+    if (!pedido || enviando) return
+    setEnviando(true); setErro(null); setTexto('')
+    const { ok, d } = await post({ acao: 'pedir', texto: pedido })
+    setEnviando(false)
+    if (!ok) { setErro(d.erro || d.error || 'A IA não respondeu. Tente de novo.'); setTexto(pedido) }
+  }
+  const desfazer = async (id: string) => {
+    setDesfazendo(true); setErro(null)
+    const { ok, d } = await post({ acao: 'desfazer', mensagem: id })
+    setDesfazendo(false)
+    if (!ok) setErro(d.erro || d.error || 'Não deu para desfazer.')
+  }
+
+  return (
+    <section className="space-y-4">
+      <SectionTitle eyebrow="PEDIR MUDANÇA" title="Diga o que mudar; a IA faz." description="Escreva como falaria com alguém da equipe. A IA decide onde a mudança entra, escreve no rascunho e mostra o antes e o depois. Correções feitas no Teste também aparecem aqui." />
+      <div className="panel overflow-hidden flex flex-col">
+        <div className="p-4 md:p-5 space-y-4 max-h-[64vh] overflow-y-auto scroll-thin">
+          {!msgs.length && (
+            <div className="py-6 text-center">
+              <MessagesSquare size={20} className="text-cyan mx-auto" />
+              <p className="text-[13px] text-body-mid mt-3">Nenhum pedido ainda. Exemplos:</p>
+              <div className="flex flex-wrap justify-center gap-2 mt-4">
+                {EXEMPLOS.map(e => <button key={e} type="button" disabled={bloqueado || enviando} onClick={() => enviar(e)} className="px-3 py-2 rounded-full border border-line-soft text-[11.5px] text-body-mid hover:text-ink hover:border-cyan/25 disabled:opacity-40">{e}</button>)}
+              </div>
+            </div>
+          )}
+          {msgs.map(m => m.papel === 'equipe' ? (
+            <div key={m.id} className="flex justify-end">
+              <div className="max-w-[88%] md:max-w-[75%] flex flex-col items-end">
+                {m.correcao ? (
+                  <div className="rounded-[12px] rounded-br-[4px] px-3.5 py-3 bg-cyan/[0.10] border border-cyan/25 text-[12.5px] text-ink space-y-2 w-full">
+                    <div className="font-mono text-[8.5px] tracking-[0.1em] text-cyan">CORREÇÃO FEITA NO TESTE</div>
+                    <div><span className="text-body-muted text-[11px]">Resposta marcada como errada:</span><p className="whitespace-pre-wrap break-words text-body-mid mt-0.5">{m.correcao.resposta}</p></div>
+                    {m.correcao.comoDeveria && <div><span className="text-body-muted text-[11px]">Como deveria ser:</span><p className="whitespace-pre-wrap break-words mt-0.5">{m.correcao.comoDeveria}</p></div>}
+                    {m.correcao.porque && <div><span className="text-body-muted text-[11px]">Por que está errado:</span><p className="whitespace-pre-wrap break-words mt-0.5">{m.correcao.porque}</p></div>}
+                  </div>
+                ) : (
+                  <div className="rounded-[12px] rounded-br-[4px] px-3.5 py-2.5 bg-cyan/[0.12] border border-cyan/25 text-[13px] text-ink whitespace-pre-wrap break-words">{m.texto}</div>
+                )}
+                <span className="font-mono text-[9px] text-body-faint mt-1 inline-flex items-center gap-1"><UserRound size={9} /> equipe · {dataHora(m.ts)}</span>
+              </div>
+            </div>
+          ) : (
+            <div key={m.id} className="flex justify-start">
+              <div className="max-w-[94%] md:max-w-[82%] flex flex-col items-start gap-2 w-full">
+                <div className="rounded-[12px] rounded-bl-[4px] px-3.5 py-2.5 surface-alt border border-line-soft text-[13px] text-ink whitespace-pre-wrap break-words">
+                  {m.destino && <div className="font-mono text-[8.5px] tracking-[0.1em] mb-1.5" style={{ color: DESTINO[m.destino]?.cor }}>{DESTINO[m.destino]?.rotulo}</div>}
+                  {m.texto}
+                </div>
+                {m.analise && (m.analise.comoDeveria || m.analise.porque) && (
+                  <div className="w-full grid md:grid-cols-2 gap-2">
+                    {m.analise.comoDeveria && <div className="rounded-[8px] border border-success/30 bg-success/[0.05] px-3 py-2.5"><div className="font-mono text-[8.5px] tracking-[0.1em] text-success">COMO DEVERIA SER</div><p className="text-[12px] text-ink whitespace-pre-wrap break-words mt-1">{m.analise.comoDeveria}</p></div>}
+                    {m.analise.porque && <div className="rounded-[8px] border border-warning/30 bg-warning/[0.05] px-3 py-2.5"><div className="font-mono text-[8.5px] tracking-[0.1em] text-warning">POR QUE ESTAVA ERRADO</div><p className="text-[12px] text-ink whitespace-pre-wrap break-words mt-1">{m.analise.porque}</p></div>}
+                  </div>
+                )}
+                {m.mudancas && m.mudancas.length > 0 && <MudancasBase mudancas={m.mudancas} desfeita={m.desfeita} onDesfazer={bloqueado ? undefined : () => desfazer(m.id)} ocupado={desfazendo} />}
+                <span className="font-mono text-[9px] text-body-faint inline-flex items-center gap-1"><Bot size={9} /> IA da base · {dataHora(m.ts)}{typeof m.custoUsd === 'number' ? ` · ${brl(m.custoUsd * 5.4, 3)}` : ''}</span>
+              </div>
+            </div>
+          ))}
+          {enviando && <div className="text-[11.5px] text-body-muted animate-pulse">A IA está lendo o pedido e a base… (uns 10 segundos)</div>}
+          <div ref={fim} />
+        </div>
+        <div className="border-t border-line-soft p-3 md:p-4">
+          {erro && <p className="text-[12px] text-warning mb-2">{erro}</p>}
+          <div className="flex gap-2">
+            <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={2} disabled={bloqueado} placeholder="Ex.: o horário do D+0 mudou para 13h · acrescenta que aceitamos Pix por QR Code"
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
+              className="campo flex-1 rounded-[10px] px-3.5 py-2.5 text-[13px] resize-none" />
+            <button type="button" onClick={() => enviar()} disabled={!texto.trim() || enviando || bloqueado} aria-label="Enviar pedido"
+              className="px-4 rounded-[10px] border border-cyan/30 bg-cyan/[0.12] text-cyan disabled:opacity-30">{enviando ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}</button>
+          </div>
+          <p className="text-[10.5px] text-body-faint mt-2">Regra de atendimento (ordem das perguntas, quando passar para a equipe) vira pedido para a Control Gestão. Taxa e preço não entram na base.{dados?.pedidosControlGestao ? ` ${dados.pedidosControlGestao} pedido(s) registrados para a Control Gestão.` : ''}</p>
+        </div>
+      </div>
+    </section>
   )
 }
 

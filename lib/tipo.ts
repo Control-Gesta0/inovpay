@@ -50,3 +50,16 @@ export const perguntouPreco = (texto: string) =>
 /** A resposta da IA trata da pergunta de taxa/preço (diz que a equipe/o time passa essa informação). */
 export const respondeuPreco = (texto: string) =>
   /\b(equipe|time|comercial|especialista|atendente)\b/.test(norm(texto)) && /\b(taxa|taxas|valor|valores|preco|precos|condic|informac|custo)/.test(norm(texto))
+
+/** Frase fixa quando a pessoa pergunta taxa/preço e a resposta não tratou disso. */
+export const FRASE_PRECO = 'As taxas e os valores a nossa equipe passa certinho pra você.'
+
+/**
+ * Perguntou taxa/preço e a resposta não disse que a equipe passa? O código encaixa a frase
+ * depois do cumprimento (o modelo esquecia em ~1 de 40, mesmo com a trava pedindo de novo).
+ */
+export function comRespostaDePreco(texto: string, perguntou: boolean): string {
+  if (!perguntou || respondeuPreco(texto)) return texto
+  const m = texto.match(/^((?:oi|ol[aá])\b[^.]*\.)\s*/i)
+  return m ? `${m[1]} ${FRASE_PRECO} ${texto.slice(m[0].length)}`.trim() : `${FRASE_PRECO} ${texto}`.trim()
+}

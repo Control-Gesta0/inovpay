@@ -1,7 +1,7 @@
 import { waitUntil } from '@vercel/functions'
 import { cenarios } from '../evals/cenarios'
 import { candidata, gravarVersao, limparPublicado } from './base'
-import { renderPrompt, validarTexto, type ItemId, type Textos } from './base-core'
+import { renderPrompt, validarExtra, validarTexto, type Extra, type ItemId, type Textos } from './base-core'
 import { CONFIG } from './config'
 import { runEvals } from './evals-runner'
 import { loadPrompt } from './llm'
@@ -25,7 +25,7 @@ export interface Exame {
   inicio: string
   fim?: string
   nota: string
-  mudancas: ItemId[]
+  mudancas: string[]
   feitos: number
   total: number
   custoUsd?: number
@@ -64,7 +64,8 @@ export async function iniciarExame(nota: string): Promise<{ exame?: Exame; erro?
   if (!c.mudou.length) return { erro: 'Não há alteração no rascunho para publicar.' }
   const problemas: Record<string, string[]> = {}
   for (const id of c.mudou) {
-    const p = validarTexto(id, c.textos[id])
+    const extra = c.extras.find(e => e.id === id)
+    const p = extra ? validarExtra(extra) : id.startsWith('extra_') ? [] : validarTexto(id, c.textos[id as ItemId])
     if (p.length) problemas[id] = p
   }
   if (Object.keys(problemas).length) return { erro: 'Corrija os textos marcados antes de publicar.', problemas }
@@ -80,18 +81,18 @@ export async function iniciarExame(nota: string): Promise<{ exame?: Exame; erro?
   }
   await salvar(exame)
   await redis.set(K_ULTIMO(), id, { ex: 30 * 86400 })
-  waitUntil(rodar(exame, c.textos))
+  waitUntil(rodar(exame, c.textos, c.extras))
   return { exame }
 }
 
-async function rodar(exame: Exame, textos: Textos): Promise<void> {
+async function rodar(exame: Exame, textos: Textos, extras: Extra[]): Promise<void> {
   try {
     const lista = cenarios(textos)
     const comum = {
       apiKey: CONFIG.openaiApiKey,
       model: CONFIG.llmModel,
       judgeModel: process.env.EVAL_JUDGE_MODEL || 'gpt-5.4-2026-03-05',
-      prompt: renderPrompt(loadPrompt(), textos),
+      prompt: renderPrompt(loadPrompt(), textos, extras),
       textos,
       concorrencia: 7,
     }
@@ -124,8 +125,8 @@ async function rodar(exame: Exame, textos: Textos): Promise<void> {
       conversa: x.conversa.map(t => ({ lead: t.lead.slice(0, 500), resposta: t.resposta.slice(0, 1500) })),
     }))
     if (!reprovados.length) {
-      const v = await gravarVersao(textos, exame.nota, { total: lista.length, reprovados: 0, custoUsd: exame.custoUsd })
-      await limparPublicado(textos)
+      const v = await gravarVersao(textos, extras, exame.nota, { total: lista.length, reprovados: 0, custoUsd: exame.custoUsd })
+      await limparPublicado(textos, extras)
       exame.versao = v.versao
       exame.status = 'aprovado'
     } else {

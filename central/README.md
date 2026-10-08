@@ -6,8 +6,8 @@ Control Gestão (padrão Central v4.1) em **três abas**:
 | Aba | Rotas | O que faz |
 |---|---|---|
 | Estatísticas | `/` · `/operacao` · `/resultados` · `/configuracoes` | visão geral, operação, resultados e sistema (subabas) |
-| Teste | `/teste` | laboratório: conversa com a assistente sem tocar no GHL |
-| Base de dados | `/base` | edita os textos; publica só depois do exame automático |
+| Teste | `/teste` | laboratório: conversa com a assistente sem tocar no GHL; botão Corrigir em cada resposta |
+| Base de dados | `/base` | a equipe pede mudanças em português e a IA altera; publica só depois do exame automático |
 
 - Estatísticas: só leitura e **zero tokens**, tudo calculado em código a partir do
   diário do agente e do GHL. Teste e o exame da Base usam o modelo (o custo aparece na tela).
