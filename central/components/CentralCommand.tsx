@@ -7,9 +7,6 @@ import { ArrowRight, Command, Search, ShieldCheck, X } from 'lucide-react'
 import { answerCentral, type CentralAnswer } from '@/lib/intelligence'
 import { useExecutions, useLive } from '@/lib/hooks'
 
-/** Abre o "Pergunte à Central" de qualquer lugar (menu lateral, topo no celular). */
-export const abrirPergunta = () => window.dispatchEvent(new Event('central:perguntar'))
-
 const SUGESTOES = [
   'Quantos foram passados para a equipe?',
   'A operação teve erros?',

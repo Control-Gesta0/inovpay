@@ -9,15 +9,15 @@ import RefreshButton from '@/components/RefreshButton'
 import CorrigirPainel from '@/components/CorrigirPainel'
 import MudancasBase from '@/components/MudancasBase'
 import { brl, dataHora, MOTIVO_ROTULO } from '@/lib/format'
+import { esquecer } from '@/lib/hooks'
 import type { BaseEstado, BaseItem, ConversaResumo, Exame, MsgConversa, TurnoReal } from '@/lib/types'
-import ComoConduz from './ComoConduz'
 
 type View = 'conversa' | 'reais' | 'sabe'
 
 const VIEWS: FocusItem<View>[] = [
   { id: 'conversa', label: 'Pedir mudança', description: 'Diga à IA o que mudar', icon: MessagesSquare },
   { id: 'reais', label: 'Conversas reais', description: 'Corrija o que ela respondeu', icon: MessageCircleWarning },
-  { id: 'sabe', label: 'O que ela sabe', description: 'Textos, roteiro e travas', icon: BookOpenText },
+  { id: 'sabe', label: 'O que ela sabe', description: 'Os textos que ela usa', icon: BookOpenText },
 ]
 /** links antigos (?ver=textos, conduz, historico) continuam abrindo o lugar certo */
 const ALIAS: Record<string, View> = { textos: 'sabe', conduz: 'sabe', historico: 'conversa' }
@@ -52,6 +52,7 @@ export default function Ensinar() {
   const [nota, setNota] = useState('')
   const [publicando, setPublicando] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
+  const [destaque, setDestaque] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const seguindo = useRef<string | null>(null)
 
@@ -60,6 +61,7 @@ export default function Ensinar() {
       const d = await (await fetch('/api/base', { cache: 'no-store' })).json()
       if (d.error) { setErro(d.error); return }
       setDados(d); setErro(null)
+      esquecer('/api/base')
       if (d.exame) setExame(d.exame)
     } catch (e) { setErro(String(e)) }
   }, [])
@@ -68,6 +70,9 @@ export default function Ensinar() {
     const pedida = new URLSearchParams(window.location.search).get('ver')
     const v = pedida ? (ALIAS[pedida] || pedida) : null
     if (v && VIEWS.some(x => x.id === v)) setView(v as View)
+    // /ensinar?ver=sabe#item-<id> (vem de Como usar): abre aquele texto
+    const alvo = window.location.hash.match(/^#item-([\w-]+)$/)?.[1]
+    if (alvo) { setView('sabe'); setDestaque(alvo) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -103,7 +108,7 @@ export default function Ensinar() {
     try {
       const r = await fetch('/api/base', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo) })
       const d = await r.json()
-      if (d.itens) setDados(d)
+      if (d.itens) { setDados(d); esquecer('/api/base') }
       return { ok: r.ok, d }
     } catch (e) {
       return { ok: false, d: { erro: `Não consegui falar com o agente: ${e instanceof Error ? e.message : String(e)}` } }
@@ -128,6 +133,10 @@ export default function Ensinar() {
   const grupos = dados ? Object.entries(dados.grupos).filter(([g]) => itens.some(i => i.grupo === g)) : []
   const alteracoes = dados?.alteracoes.length || 0
   const comProblema = itens.filter(i => i.rascunho !== null && i.problemas.length).length
+
+  useEffect(() => {
+    if (destaque && dados) document.getElementById(`item-${destaque}`)?.scrollIntoView({ block: 'start' })
+  }, [destaque, dados])
 
   const exameVisivel = !!exame && (exame.status !== 'aprovado' || (!!exame.fim && Date.now() - Date.parse(exame.fim) < EXAME_RECENTE))
   const bloqueado = publicando || !!dados?.demo
@@ -200,17 +209,16 @@ export default function Ensinar() {
 
       {abertas.has('sabe') && (
         <div className={`space-y-8 ${view === 'sabe' ? '' : 'hidden'}`}>
-          <p className="text-[12.5px] text-body-muted">Só leitura. Para mudar qualquer coisa, peça em Pedir mudança. Clique num texto para abrir.</p>
+          <p className="text-[12.5px] text-body-muted">Só leitura: para mudar, peça em Pedir mudança. Clique num texto para abrir. O roteiro e as travas estão em <Link href="/como-usar?ver=fluxo" className="text-cyan">Como usar › Fluxo do cliente</Link>.</p>
           {grupos.map(([g, titulo]) => (
             <section key={g} className="space-y-3">
               <h2 className="font-impact font-bold text-[18px] md:text-[20px] text-ink">{titulo}</h2>
               <div className="space-y-2">
-                {itens.filter(i => i.grupo === g).map(i => <Item key={i.id} item={i} post={post} bloqueado={bloqueado} />)}
+                {itens.filter(i => i.grupo === g).map(i => <Item key={i.id} item={i} post={post} bloqueado={bloqueado} destacado={destaque === i.id} />)}
               </div>
             </section>
           ))}
           {!dados && !erro && <div className="panel h-60 animate-pulse surface-alt" />}
-          <ComoConduz />
         </div>
       )}
     </div>
@@ -220,13 +228,13 @@ export default function Ensinar() {
 type Post = (c: Record<string, unknown>) => Promise<{ ok: boolean; d: { erro?: string; error?: string; resposta?: MsgConversa; exame?: Exame } }>
 
 /** Texto da base, só leitura: quem muda é a IA, a pedido da equipe. */
-function Item({ item, post, bloqueado }: { item: BaseItem; post: Post; bloqueado: boolean }) {
+function Item({ item, post, bloqueado, destacado }: { item: BaseItem; post: Post; bloqueado: boolean; destacado?: boolean }) {
   const noRascunho = item.rascunho !== null
   const removido = noRascunho && item.rascunho === '' && item.grupo === 'extras'
   const atual = noRascunho ? item.rascunho! : item.noAr
   const editadoNoAr = item.grupo !== 'extras' && item.noAr !== item.padrao
   return (
-    <details open={noRascunho} className={`panel overflow-hidden group ${noRascunho ? 'border-warning/30' : ''}`}>
+    <details id={`item-${item.id}`} open={noRascunho || destacado} className={`panel overflow-hidden group scroll-mt-6 ${noRascunho ? 'border-warning/30' : destacado ? 'border-cyan/40' : ''}`}>
       <summary className="list-none cursor-pointer px-5 py-3.5 flex items-center gap-3 hover-raise">
         <div className="min-w-0 flex-1 flex items-center gap-2 flex-wrap">
           <h3 className="text-[13.5px] font-medium text-ink">{item.titulo}</h3>

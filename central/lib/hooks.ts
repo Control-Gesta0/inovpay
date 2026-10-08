@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { ExecutionData, LiveData } from './types'
+import type { BaseEstado, ExecutionData, LiveData } from './types'
 
 /**
  * Uma leitura por fonte, compartilhada: as subabas de Estatísticas e o
@@ -54,3 +54,9 @@ function useFonte<T>(path: string) {
 
 export const useExecutions = () => useFonte<ExecutionData>('/api/exec')
 export const useLive = () => useFonte<LiveData>('/api/live')
+export const useBase = () => useFonte<BaseEstado>('/api/base')
+
+/** Ensinar avisa que a base mudou: a próxima tela que ler busca de novo. */
+export function esquecer(path: string) {
+  if (!cache.get(path)?.buscando) cache.delete(path)
+}

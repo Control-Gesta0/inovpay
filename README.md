@@ -51,7 +51,7 @@ Lead manda mensagem no WhatsApp
 ## Central de IA (painel)
 
 **https://central-inovpay.vercel.app** · identidade da Control Gestão, padrão Central v4.1, em `central/`
-(projeto Vercel próprio, `central-inovpay`). Três abas:
+(projeto Vercel próprio, `central-inovpay`). Quatro abas:
 
 - **Estatísticas**: visão geral (veredito, o que pede decisão e quatro números de hoje), operação (agora,
   passagens com resumo e link do contato, histórico auditável, funil do GHL com as oportunidades paradas),
@@ -70,7 +70,12 @@ Lead manda mensagem no WhatsApp
   (seção 11 do prompt), registra pedido para a Control Gestão (regra de atendimento) ou recusa (taxa, preço,
   senha). Tudo vai para o rascunho; publicar roda o exame (14 cenários; cenário que falha roda mais 2 vezes e
   precisa passar nas duas). Três subabas: Pedir mudança, Conversas reais e O que ela sabe (textos recolhidos,
-  roteiro e travas, só leitura); as versões anteriores, com "voltar para esta", ficam recolhidas no quadro do topo.
+  só leitura); as versões anteriores, com "voltar para esta", ficam recolhidas no quadro do topo.
+- **Como usar**: o manual vivo para a equipe do cliente. Passo a passo da Central, fluxo do cliente no WhatsApp
+  (cada etapa mostra o texto da base que a assistente usa, lido da versão no ar, com link para mudar em Ensinar),
+  "Sua base" (versão, textos por assunto, como uma mudança passa a valer, quem muda o quê) e "Equipe no GHL"
+  (tags, combinados, dúvidas). Roteiro e travas moram aqui. O conteúdo de cada cliente fica em
+  `central/lib/como-usar.ts`; a página é a estrutura.
 - **Material para ensinar**: no "Pedir mudança" dá para anexar até 3 arquivos (PDF, Word .docx, texto, Markdown,
   CSV ou imagem; 3 MB no total) ou colar até 3 links (site, Google Docs ou Planilhas compartilhados com "qualquer
   pessoa com o link"). `lib/material.ts` transforma em texto uma vez (PDF e imagem lidos pela OpenAI com a chave do

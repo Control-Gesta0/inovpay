@@ -1,13 +1,14 @@
 # Central de IA · Assistente virtual (InovPay)
 
 Painel sobre a assistente virtual da InovPay no WhatsApp, com a identidade da
-Control Gestão (padrão Central v4.1) em **três abas**:
+Control Gestão (padrão Central v4.1) em **quatro abas**:
 
 | Aba | Rotas | O que faz |
 |---|---|---|
 | Estatísticas | `/` · `/operacao` · `/resultados` · `/configuracoes` | visão geral, operação, resultados e sistema (subabas) |
 | Teste | `/teste` | laboratório: conversa com a assistente sem tocar no GHL; botão Corrigir em cada resposta |
 | Ensinar | `/ensinar` (o antigo `/base` redireciona) | a equipe pede mudanças em português, com arquivo ou link se quiser, e a IA altera; publica só depois do exame automático |
+| Como usar | `/como-usar` | passo a passo, fluxo do cliente ligado aos textos da base no ar, "Sua base" e o dia a dia da equipe no GHL (conteúdo em `lib/como-usar.ts`) |
 
 - Estatísticas: só leitura e **zero tokens**, tudo calculado em código a partir do
   diário do agente e do GHL. Teste e o exame da Base usam o modelo (o custo aparece na tela).

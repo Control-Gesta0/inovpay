@@ -2,16 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart3, FlaskConical, GraduationCap, LogOut, Sparkles } from 'lucide-react'
+import { BarChart3, Compass, FlaskConical, GraduationCap, LogOut, Sparkles } from 'lucide-react'
 import Logo from './Logo'
 import ToggleTema from './ToggleTema'
 import { sair } from '@/app/login/acoes'
-import { abrirPergunta } from './CentralCommand'
+import { abrirPergunta } from '@/lib/pergunta'
 
 export const NOME_CLIENTE = 'InovPay'
 /** a assistente virtual da InovPay no WhatsApp (feminino nos textos: "a assistente") */
 export const NOME_AGENTE = 'Assistente virtual'
-export const SISTEMA_VERSAO = 'CENTRAL V4.1 · 3 ABAS'
+export const SISTEMA_VERSAO = 'CENTRAL V4.1 · 4 ABAS'
 
 const ESTATISTICAS = ['/', '/operacao', '/resultados', '/configuracoes']
 
@@ -19,6 +19,7 @@ const NAV = [
   { href: '/', label: 'Estatísticas', hint: 'operação e resultados', Icon: BarChart3 },
   { href: '/teste', label: 'Teste', hint: 'converse com a assistente', Icon: FlaskConical },
   { href: '/ensinar', label: 'Ensinar', hint: 'o que ela sabe', Icon: GraduationCap },
+  { href: '/como-usar', label: 'Como usar', hint: 'passo a passo e fluxo', Icon: Compass },
 ]
 
 function ativo(path: string, href: string) {
@@ -90,12 +91,12 @@ export default function Sidebar() {
             <ToggleTema />
           </div>
         </div>
-        <nav className="flex gap-1 overflow-x-auto scroll-thin pb-1">
+        <nav className="grid grid-cols-4 gap-1">
           {NAV.map(({ href, label, Icon }) => (
-            <Link key={href} href={href} className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-[6px] text-[11px] border ${
+            <Link key={href} href={href} className={`min-w-0 flex flex-col items-center gap-1 px-1 py-1.5 rounded-[6px] text-[10.5px] border whitespace-nowrap ${
               ativo(path, href) ? 'text-cyan border-cyan/25 bg-cyan/[0.08]' : 'text-body-muted border-transparent'
             }`}>
-              <Icon size={13} /> {label}
+              <Icon size={14} /> {label}
             </Link>
           ))}
         </nav>
