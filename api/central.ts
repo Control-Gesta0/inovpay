@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { safeEq } from './inbound'
 import {
-  buildConversas, buildExecutionData, buildFunil, buildRecovery, type GhlOppResumo, type LiveData,
+  buildConversas, buildExecutionData, buildFunil, type GhlOppResumo, type LiveData,
 } from '../lib/central-data'
 import { CONFIG } from '../lib/config'
 import { CRM_MAP } from '../lib/crm-map'
@@ -11,7 +11,7 @@ import { ghl } from '../lib/ghl'
 
 /**
  * Leitura da Central (painel). Só leitura, zero tokens.
- * GET /api/central?recurso=execucoes|live|recuperacao  (header x-central-secret)
+ * GET /api/central?recurso=execucoes|live  (header x-central-secret)
  * Aceita CENTRAL_SECRET; sem ela, o WEBHOOK_SECRET (Central só da agência).
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -24,8 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (recurso === 'execucoes') return res.status(200).json(await execucoes())
     if (recurso === 'live') return res.status(200).json(await live())
-    if (recurso === 'recuperacao') return res.status(200).json(buildRecovery())
-    return res.status(400).json({ error: 'recurso inválido (execucoes | live | recuperacao)' })
+    return res.status(400).json({ error: 'recurso inválido (execucoes | live)' })
   } catch (e) {
     return res.status(500).json({ error: (e instanceof Error ? e.message : String(e)).slice(0, 300) })
   }

@@ -1,23 +1,22 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ExternalLink, Headset, Radio, Repeat2, Route, ScrollText } from 'lucide-react'
+import { ExternalLink, Headset, Radio, Route, ScrollText } from 'lucide-react'
 import RefreshButton from '@/components/RefreshButton'
 import { PageIntro, SectionTitle } from '@/components/ProductUI'
 import FlightRecorder from '@/components/FlightRecorder'
-import RecoveryPanel from '@/components/RecoveryPanel'
+import MoneyRadar from '@/components/MoneyRadar'
 import { dataHora } from '@/lib/format'
 import { useExecutions, useLive } from '@/lib/hooks'
 import type { Execution, Passagem } from '@/lib/types'
 
-type Tab = 'agora' | 'passagens' | 'historico' | 'recuperacao' | 'funil'
+type Tab = 'agora' | 'passagens' | 'historico' | 'funil'
 type Filtro = 'todas' | 'marcos' | 'travas' | 'erros'
 
 const TABS: Array<{ id: Tab; label: string; icon: typeof Radio }> = [
   { id: 'agora', label: 'Agora', icon: Radio },
   { id: 'passagens', label: 'Passagens', icon: Headset },
   { id: 'historico', label: 'Histórico', icon: ScrollText },
-  { id: 'recuperacao', label: 'Recuperação', icon: Repeat2 },
   { id: 'funil', label: 'Funil', icon: Route },
 ]
 
@@ -49,7 +48,7 @@ export default function Operacao() {
 
   return (
     <div className="space-y-8">
-      <PageIntro eyebrow="OPERAÇÃO" title="Tudo que a assistente está" accent="fazendo." description="Atendimentos, passagens para a equipe, decisões registradas e o funil comercial." action={<RefreshButton />} />
+      <PageIntro eyebrow="OPERAÇÃO" title="O que a assistente está" accent="fazendo." description="Quem está falando agora, quem foi para a equipe, o diário de cada resposta e o funil." action={<RefreshButton />} />
       <div className="max-w-full overflow-x-auto no-scrollbar">
         <div className="segmented">
           {TABS.map(t => <button key={t.id} onClick={() => trocar(t.id)} className={`whitespace-nowrap ${tab === t.id ? 'active' : ''}`}><t.icon size={13} className="inline mr-1.5 -mt-0.5" />{t.label}</button>)}
@@ -128,13 +127,11 @@ export default function Operacao() {
         </section>
       )}
 
-      {tab === 'recuperacao' && <RecoveryPanel />}
-
       {tab === 'funil' && (
-        <section>
-          <SectionTitle eyebrow={`PIPELINE · ${live?.pipeline.nome.toUpperCase() || 'GHL'}`} title="Onde estão as oportunidades." description="Só leitura: nesta fase a assistente não move cards. &quot;Parados&quot; = abertas sem mudar de etapa há 7 dias ou mais." />
+        <section className="space-y-5">
+          <SectionTitle eyebrow={`PIPELINE · ${live?.pipeline.nome.toUpperCase() || 'GHL'}`} title="Onde estão as oportunidades." description="Só leitura: nesta fase a assistente não move cards." />
           {live && (
-            <div className="grid grid-cols-3 gap-3 mb-5">
+            <div className="grid grid-cols-3 gap-3">
               <Mini label="Abertas" value={live.leads.abertas} color="#06b6d4" />
               <Mini label="Ganhas" value={live.leads.ganhas} color="#22c55e" />
               <Mini label="Perdidas" value={live.leads.perdidas} color="#737373" />
@@ -144,11 +141,10 @@ export default function Operacao() {
             {(live?.funil || []).map((e, _i, arr) => {
               const max = Math.max(...arr.map(x => x.n), 1)
               return (
-                <div key={e.id} className="grid grid-cols-[110px_1fr_28px] md:grid-cols-[170px_1fr_40px_90px] items-center gap-3">
+                <div key={e.id} className="grid grid-cols-[110px_1fr_28px] md:grid-cols-[170px_1fr_40px] items-center gap-3">
                   <span className="text-[12px] truncate text-ink">{e.label}</span>
                   <div className="h-2 surface-alt rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.max(2, (e.n / max) * 100)}%`, background: e.n ? '#06b6d4' : 'var(--body-faint)' }} /></div>
                   <span className="font-mono text-[10px] text-body-muted text-right">{e.n}</span>
-                  <span className="hidden md:block font-mono text-[9.5px] text-right text-warning">{e.parados ? `${e.parados} parado(s)` : ''}</span>
                 </div>
               )
             })}
@@ -156,6 +152,7 @@ export default function Operacao() {
             {live && !live.funil.length && <Empty text="O pipeline não respondeu. Veja Configurações." />}
             {erro && <Empty text={`Não consegui ler o funil: ${erro}`} />}
           </div>
+          {live && live.funil.length > 0 && <MoneyRadar live={live} />}
         </section>
       )}
     </div>

@@ -336,31 +336,6 @@ export function buildConversas(execs: Execution[], now = Date.now()): Pick<LiveD
   }
 }
 
-// ---------- Recuperação (follow-up) ----------
-
-export interface RecoveryData {
-  ativo: boolean
-  fila: Array<{ contactId: string; nome: string; proximoToque: number; quando: string }>
-  buckets: { vencidos: number; proximaHora: number; hoje: number; amanha: number; depois: number }
-  porToque: Array<{ toque: number; enviados: number; responderam: number; concretizaram: number }>
-  esgotados: number
-  definicao: { resposta: string; objetivo: string; janelaHoras: number; cadenciaHoras: number[] }
-  observacao: string
-}
-
-/** A InovPay não tem follow-up automático nesta fase: o contrato fica, vazio e declarado. */
-export function buildRecovery(): RecoveryData {
-  return {
-    ativo: false,
-    fila: [],
-    buckets: { vencidos: 0, proximaHora: 0, hoje: 0, amanha: 0, depois: 0 },
-    porToque: [],
-    esgotados: 0,
-    definicao: { resposta: '', objetivo: '', janelaHoras: 0, cadenciaHoras: [] },
-    observacao: 'O follow-up automático não faz parte desta fase. A assistente substitui o bot de menu e a IA de SDR do GHL; retomar contato que parou de responder continua com a equipe.',
-  }
-}
-
 function round(n: number, casas: number): number {
   const f = 10 ** casas
   return Math.round(n * f) / f

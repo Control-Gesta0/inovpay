@@ -170,7 +170,7 @@ async function main() {
   eq('grupo de WhatsApp', ehGrupo({ phone: '+120363012345678' }), true)
 
   // ---------- Central (contrato de dados) ----------
-  const { buildConversas, buildExecutionData, buildFunil, buildRecovery, marcoDe } = await import('../lib/central-data')
+  const { buildConversas, buildExecutionData, buildFunil, marcoDe } = await import('../lib/central-data')
   const { mascararPII } = await import('../lib/guards')
   const NOW = Date.parse('2026-10-07T15:00:00Z')
   const h = (horas: number) => new Date(NOW - horas * 3600_000).toISOString()
@@ -209,7 +209,6 @@ async function main() {
   ], 'ia', NOW)
   eq('funil na ordem do GHL', fu.funil.map(e => [e.label, e.n, e.parados]), [['Novo Lead', 1, 1], ['Primeiro Contato', 1, 0]])
   eq('ganhas fora das etapas', fu.leads, { total: 3, abertas: 2, ganhas: 1, perdidas: 0, comIA: 2, tagsDisponiveis: true })
-  eq('sem follow-up nesta fase', [buildRecovery().ativo, buildRecovery().fila.length], [false, 0])
   eq('PII mascarada', mascararPII('meu cnpj 12.345.678/0001-95, cpf 12345678909, fone (11) 98765-4321, a@b.com'), 'meu cnpj [cnpj], cpf [cpf], fone [telefone], [e-mail]')
   eq('celular de 11 dígitos vira telefone, não CPF', mascararPII('me liga 11987654321'), 'me liga [telefone]')
   eq('CPF pontuado e CNPJ alfanumérico', mascararPII('123.456.789-09 e 12.ABC.345/01DE-35'), '[cpf] e [cnpj]')

@@ -19,7 +19,7 @@ Control Gestão (padrão Central v4.1) em **três abas**:
 ## Como os dados chegam
 
 ```
-navegador → /api/exec | /api/live | /api/recuperacao   (Central, exige login)
+navegador → /api/exec | /api/live   (Central, exige login)
           → AGENT_URL/api/central?recurso=…            (agente, header x-central-secret)
           → Redis (diário de execuções) + GHL (funil, conferência do mapa)
 navegador → /api/base | /api/teste                     (Central, exige login)

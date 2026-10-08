@@ -1,5 +1,5 @@
 import { brl } from './format'
-import type { ExecutionData, LiveData, RecoveryData } from './types'
+import type { ExecutionData, LiveData } from './types'
 
 /**
  * Briefing e "Pergunte à Central": interpretação calculada em código, zero
@@ -9,18 +9,15 @@ import type { ExecutionData, LiveData, RecoveryData } from './types'
 export type SignalTone = 'calm' | 'attention' | 'critical' | 'opportunity' | 'learning'
 
 export interface DecisionCard { id: string; tone: SignalTone; title: string; evidence: string; impact: string; action: string; href: string }
-export interface ExecutiveBriefing { greeting: string; summary: string; decisions: DecisionCard[] }
+/** `ritmo` completa os quatro números da Visão geral (não repete nenhum deles). */
+export interface ExecutiveBriefing { ritmo: string; decisions: DecisionCard[] }
 
 const plural = (n: number, s: string, p: string) => (n === 1 ? s : p)
 const DIA = 86400_000
 
 export function buildBriefing(live: LiveData | null, data: ExecutionData | null): ExecutiveBriefing {
   if (!live || !data) {
-    return {
-      greeting: 'Estou reunindo as fontes da operação.',
-      summary: 'O briefing só aparece depois que o CRM e o diário responderem. Até lá, nenhuma conclusão é inventada.',
-      decisions: [],
-    }
+    return { ritmo: 'Reunindo o CRM e o diário. Nenhuma conclusão aparece antes das duas fontes responderem.', decisions: [] }
   }
   const decisions: DecisionCard[] = []
   const erros = data.saude24h.erros
@@ -70,7 +67,7 @@ export function buildBriefing(live: LiveData | null, data: ExecutionData | null)
       id: 'parados', tone: 'opportunity',
       title: `${parados.parados} ${plural(parados.parados, 'oportunidade parada', 'oportunidades paradas')} em ${parados.label}`,
       evidence: `Sem mudança de etapa há 7 dias ou mais${parados.valor ? `, somando ${brl(parados.valor, 0)} em valor aberto na etapa` : ''}.`,
-      impact: 'É onde o funil comercial está perdendo ritmo.', action: 'Ver dinheiro parado', href: '/resultados#radar',
+      impact: 'É onde o funil comercial está perdendo ritmo.', action: 'Ver no funil', href: '/operacao?aba=funil',
     })
   }
   if (!data.financeiro.execucoesComCusto) {
@@ -81,15 +78,15 @@ export function buildBriefing(live: LiveData | null, data: ExecutionData | null)
     })
   }
 
-  const m = data.marcos.hoje
   return {
-    greeting: erros === 0 && live.saude.crmOk ? 'A assistente está operando sem falha crítica.' : 'A assistente está operando, com pontos de atenção.',
-    summary: `Hoje: ${m.atendidos} ${plural(m.atendidos, 'contato atendido', 'contatos atendidos')} (${m.clientes} ${plural(m.clientes, 'cliente', 'clientes')}, ${m.naoClientes} ${plural(m.naoClientes, 'não cliente', 'não clientes')}), ${m.passagens} ${plural(m.passagens, 'passagem', 'passagens')} para a equipe e ${m.resolvidos} ${plural(m.resolvidos, 'resolvido', 'resolvidos')} sem precisar dela. Tempo mediano de ${live.respostaMedianaSegundos ? `${Math.round(live.respostaMedianaSegundos)}s` : '—'} por resposta, contando a espera de 10s que junta mensagens seguidas.`,
+    ritmo: live.respostaMedianaSegundos
+      ? `Tempo mediano de ${Math.round(live.respostaMedianaSegundos)}s por resposta, contando a espera de 10s que junta mensagens seguidas.`
+      : 'Ainda sem resposta medida nas últimas 24 horas.',
     decisions: decisions.slice(0, 4),
   }
 }
 
-export interface MoneySignal { id: string; stage: string; count: number; value: number; tone: SignalTone; title: string; explanation: string; samples: LiveData['funil'][number]['amostras'] }
+export interface MoneySignal { id: string; stage: string; count: number; value: number; tone: SignalTone; title: string; samples: LiveData['funil'][number]['amostras'] }
 
 export function buildMoneyRadar(live: LiveData | null): MoneySignal[] {
   if (!live) return []
@@ -99,9 +96,6 @@ export function buildMoneyRadar(live: LiveData | null): MoneySignal[] {
       id: `money-${i}`, stage: s.label, count: s.parados, value: s.valor,
       tone: (/Aguardando|Criar Conta|Análise|Enviar|Ativação/i.test(s.label) ? 'critical' : 'opportunity') as SignalTone,
       title: `${s.parados} ${plural(s.parados, 'parada', 'paradas')} em ${s.label}`,
-      explanation: s.valor
-        ? `${brl(s.valor, 0)} em valor aberto nessa etapa; conta oportunidades abertas sem mudança de etapa há 7 dias ou mais.`
-        : 'Oportunidades abertas sem mudança de etapa há 7 dias ou mais.',
       samples: s.amostras,
     }))
     .sort((a, b) => (b.value || b.count) - (a.value || a.count))
@@ -110,11 +104,11 @@ export function buildMoneyRadar(live: LiveData | null): MoneySignal[] {
 
 export interface CentralAnswer { answer: string; evidence: string[]; href?: string; label?: string }
 
-export function answerCentral(raw: string, live: LiveData | null, data: ExecutionData | null, rec: RecoveryData | null): CentralAnswer {
+export function answerCentral(raw: string, live: LiveData | null, data: ExecutionData | null): CentralAnswer {
   const q = raw.toLowerCase()
   if (!live || !data) return { answer: 'Ainda estou carregando o CRM e o diário.', evidence: ['Espere as fontes responderem e pergunte de novo.'] }
 
-  if (/custo|gasto|token|investimento|quanto custa/.test(q)) {
+  if (/custo|gast|token|investimento|quanto custa/.test(q)) {
     const f = data.financeiro
     return {
       answer: f.execucoesComCusto
@@ -154,13 +148,6 @@ export function answerCentral(raw: string, live: LiveData | null, data: Executio
       answer: `Nos últimos 7 dias, ${m.foraDoHorario} contato(s) escreveram fora do horário, receberam o aviso e já fizeram a triagem com a assistente.`,
       evidence: [`Expediente da equipe: ${live.regras.expediente}`, 'O aviso sai uma vez por período fechado; a triagem segue normal.'],
       href: '/operacao?aba=historico', label: 'Abrir o histórico',
-    }
-  }
-  if (/follow|recupera|sumiu|retom/.test(q)) {
-    return {
-      answer: rec ? rec.observacao : 'A leitura do follow-up não respondeu.',
-      evidence: [],
-      href: '/operacao?aba=recuperacao', label: 'Abrir recuperação',
     }
   }
   return {

@@ -2,9 +2,9 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, BookOpenText, Bot, CheckCircle2, FileText, FlaskConical, History, Link2, ListChecks, Loader2, MessageCircleWarning, MessagesSquare, Paperclip, PenLine, Pencil, Search, Send, ShieldCheck, Undo2, Upload, UserRound, X, XCircle } from 'lucide-react'
+import { AlertTriangle, BookOpenText, Bot, CheckCircle2, FileText, FlaskConical, History, Link2, Loader2, MessageCircleWarning, MessagesSquare, Paperclip, PenLine, Pencil, Search, Send, ShieldCheck, Undo2, Upload, UserRound, X, XCircle } from 'lucide-react'
 import FocusNav, { type FocusItem } from '@/components/FocusNav'
-import { PageIntro, SectionTitle } from '@/components/ProductUI'
+import { PageIntro } from '@/components/ProductUI'
 import RefreshButton from '@/components/RefreshButton'
 import CorrigirPainel from '@/components/CorrigirPainel'
 import MudancasBase from '@/components/MudancasBase'
@@ -12,15 +12,17 @@ import { brl, dataHora, MOTIVO_ROTULO } from '@/lib/format'
 import type { BaseEstado, BaseItem, ConversaResumo, Exame, MsgConversa, TurnoReal } from '@/lib/types'
 import ComoConduz from './ComoConduz'
 
-type View = 'conversa' | 'reais' | 'textos' | 'conduz' | 'historico'
+type View = 'conversa' | 'reais' | 'sabe'
 
 const VIEWS: FocusItem<View>[] = [
   { id: 'conversa', label: 'Pedir mudança', description: 'Diga à IA o que mudar', icon: MessagesSquare },
   { id: 'reais', label: 'Conversas reais', description: 'Corrija o que ela respondeu', icon: MessageCircleWarning },
-  { id: 'textos', label: 'Textos', description: 'O que ela manda e consulta', icon: BookOpenText },
-  { id: 'conduz', label: 'Como ela conduz', description: 'Roteiro e travas (leitura)', icon: ListChecks },
-  { id: 'historico', label: 'Versões', description: 'O que foi publicado', icon: History },
+  { id: 'sabe', label: 'O que ela sabe', description: 'Textos, roteiro e travas', icon: BookOpenText },
 ]
+/** links antigos (?ver=textos, conduz, historico) continuam abrindo o lugar certo */
+const ALIAS: Record<string, View> = { textos: 'sabe', conduz: 'sabe', historico: 'conversa' }
+/** o resultado do último exame some do topo depois de 15 minutos (a versão no ar já diz o que vale) */
+const EXAME_RECENTE = 15 * 60_000
 
 const CENARIO: Record<string, string> = {
   'cliente-maquininha': 'Cliente com problema na maquininha',
@@ -40,7 +42,10 @@ const CENARIO: Record<string, string> = {
 }
 
 export default function Ensinar() {
-  const [view, setView] = useState<View>('conversa')
+  const [view, setViewBruto] = useState<View>('conversa')
+  // abas já abertas ficam montadas (escondidas): rascunho do pedido, anexos e conversa aberta não se perdem
+  const [abertas, setAbertas] = useState<Set<View>>(new Set(['conversa']))
+  const setView = (v: View) => { setViewBruto(v); setAbertas(a => new Set(a).add(v)) }
   const [dados, setDados] = useState<(BaseEstado & { demo?: boolean }) | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [exame, setExame] = useState<Exame | null>(null)
@@ -61,7 +66,9 @@ export default function Ensinar() {
 
   useEffect(() => {
     const pedida = new URLSearchParams(window.location.search).get('ver')
-    if (pedida && VIEWS.some(v => v.id === pedida)) setView(pedida as View)
+    const v = pedida ? (ALIAS[pedida] || pedida) : null
+    if (v && VIEWS.some(x => x.id === v)) setView(v as View)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -122,34 +129,33 @@ export default function Ensinar() {
   const alteracoes = dados?.alteracoes.length || 0
   const comProblema = itens.filter(i => i.rascunho !== null && i.problemas.length).length
 
+  const exameVisivel = !!exame && (exame.status !== 'aprovado' || (!!exame.fim && Date.now() - Date.parse(exame.fim) < EXAME_RECENTE))
+  const bloqueado = publicando || !!dados?.demo
+
   return (
     <div className="space-y-8">
-      <PageIntro eyebrow="ENSINAR" title="O que a assistente" accent="sabe." description="Os textos que ela manda e consulta. Para mudar ou acrescentar, peça em português: a IA faz a mudança e nada vale no WhatsApp antes do exame automático." action={<RefreshButton />} />
+      <PageIntro eyebrow="ENSINAR" title="O que a assistente" accent="sabe." description="Peça em português, com arquivo ou link se quiser. A IA muda o rascunho e o exame automático decide se vale no WhatsApp." action={<RefreshButton />} />
 
       {dados?.demo && <p className="text-[12px] text-warning">Modo demonstração: os textos são os de verdade, mas pedir mudança e publicar precisam do agente.</p>}
       {erro && <div className="panel p-5 text-[13px] text-warning">Não consegui ler a base: {erro}</div>}
 
       <section className="panel overflow-hidden">
-        <div className="p-5 md:p-6 flex items-start gap-4 flex-wrap">
+        <div className="p-5 md:p-6 flex items-start gap-4">
           <div className={`state-orb shrink-0 ${alteracoes ? 'text-warning bg-warning/[0.08]' : 'text-success bg-success/[0.08]'}`}>
             {alteracoes ? <Pencil size={16} /> : <ShieldCheck size={16} />}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-cyan">{dados ? `Versão ${dados.versao} no ar` : 'Carregando'}{dados?.publicadoEm ? ` · publicada em ${dataHora(dados.publicadoEm)}` : dados ? ' · textos originais' : ''}</div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-cyan">{dados ? `Versão ${dados.versao} no ar` : 'Carregando'}{dados?.publicadoEm ? ` · publicada em ${dataHora(dados.publicadoEm)}${dados.nota ? ` · ${dados.nota}` : ''}` : dados ? ' · textos originais' : ''}</div>
             <h2 className="font-impact font-bold text-[18px] md:text-[20px] text-ink mt-2">
-              {!dados ? 'Lendo a base…' : alteracoes ? `${alteracoes} ${alteracoes === 1 ? 'mudança feita pela IA espera' : 'mudanças feitas pela IA esperam'} o exame para valer.` : 'Tudo o que está aqui é o que a assistente usa agora.'}
+              {!dados ? 'Lendo a base…' : alteracoes ? `${alteracoes} ${alteracoes === 1 ? 'mudança da IA espera' : 'mudanças da IA esperam'} o exame para valer.` : 'É isso que a assistente usa agora.'}
             </h2>
-            <p className="text-[12.5px] text-body-mid leading-relaxed mt-1.5">
-              {alteracoes
-                ? 'Teste no laboratório com o rascunho e, quando estiver bom, publique. O exame roda os 14 cenários de atendimento com os textos novos (leva menos de 1 minuto) e só publica se todos passarem. Cenário que falhar roda mais 2 vezes e precisa passar nas duas.'
-                : 'Para mudar um texto ou acrescentar uma informação, peça em Pedir mudança. A IA escreve a mudança no rascunho; ela só vale depois de publicar.'}
-            </p>
+            {alteracoes > 0 && <p className="text-[12.5px] text-body-mid leading-relaxed mt-1.5">O exame roda 14 conversas de teste com o rascunho (menos de 1 minuto) e só publica se todas passarem.</p>}
           </div>
         </div>
 
         {alteracoes > 0 && (
           <div className="border-t border-line-soft p-5 md:px-6 flex flex-wrap items-center gap-3">
-            <input value={nota} onChange={e => setNota(e.target.value)} maxLength={200} placeholder="O que mudou? (opcional, aparece no histórico)" className="campo rounded-[8px] px-3.5 py-2.5 text-[12.5px] flex-1 min-w-[220px]" />
+            <input value={nota} onChange={e => setNota(e.target.value)} maxLength={200} placeholder="O que mudou? (opcional, aparece nas versões)" className="campo rounded-[8px] px-3.5 py-2.5 text-[12.5px] flex-1 min-w-[220px]" />
             <Link href="/teste?versao=rascunho" className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-[8px] border border-line-soft text-[12px] text-body-mid hover:text-ink hover-raise">
               <FlaskConical size={13} /> Testar o rascunho
             </Link>
@@ -157,64 +163,55 @@ export default function Ensinar() {
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[8px] border border-cyan/30 bg-cyan/[0.12] text-cyan text-[12.5px] font-medium disabled:opacity-40">
               {publicando ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} Publicar com exame
             </button>
-            <button type="button" onClick={() => post({ acao: 'descartar' })} disabled={publicando || !!dados?.demo} className="text-[11.5px] text-body-faint hover:text-ink disabled:opacity-40">descartar tudo</button>
+            <button type="button" onClick={() => post({ acao: 'descartar' })} disabled={bloqueado} className="text-[11.5px] text-body-faint hover:text-ink disabled:opacity-40">descartar tudo</button>
             {comProblema > 0 && <p className="basis-full text-[11.5px] text-warning">Corrija {comProblema === 1 ? 'o texto marcado' : `os ${comProblema} textos marcados`} antes de publicar.</p>}
           </div>
         )}
         {aviso && <div className="border-t border-line-soft px-5 md:px-6 py-3 text-[12px] text-warning">{aviso}</div>}
-        {exame && <ResultadoExame exame={exame} />}
+        {exameVisivel && <ResultadoExame exame={exame!} />}
+        {dados && dados.historico.length > 0 && (
+          <details className="group border-t border-line-soft">
+            <summary className="list-none cursor-pointer px-5 md:px-6 py-3 flex items-center gap-2 text-[12px] text-body-mid hover:text-ink hover-raise">
+              <History size={13} className="shrink-0" /> Versões anteriores ({dados.historico.length})
+              <span className="ml-auto text-[11px] text-body-faint group-open:rotate-90 transition-transform">▷</span>
+            </summary>
+            <div className="border-t border-line-soft">
+              {dados.historico.map((h, i) => (
+                <div key={`${h.versao}-${h.publicadoEm}`} className={`px-5 md:px-6 py-3 flex items-center gap-3 ${i ? 'border-t border-line-soft' : ''}`}>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12.5px] text-ink">Versão {h.versao}</div>
+                    <div className="text-[11px] text-body-muted mt-0.5">{h.publicadoEm ? `${dataHora(h.publicadoEm)} · ${h.nota || 'sem nota'}` : 'textos originais da implantação'}</div>
+                  </div>
+                  <button type="button" disabled={bloqueado}
+                    onClick={() => { if (confirm(`Voltar para a versão ${h.versao}? Ela passa a valer no WhatsApp agora (já passou no exame quando foi publicada).`)) void post({ acao: 'voltar', versao: h.versao }) }}
+                    className="inline-flex items-center gap-1.5 text-[11.5px] text-cyan disabled:opacity-40 shrink-0"><Undo2 size={12} /> Voltar para esta</button>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
       </section>
 
       <FocusNav items={VIEWS} value={view} onChange={setView} label="Áreas de Ensinar" />
 
-      {view === 'conversa' && <Conversa dados={dados} post={post} bloqueado={publicando || !!dados?.demo} />}
+      <div className={view === 'conversa' ? '' : 'hidden'}><Conversa dados={dados} post={post} bloqueado={bloqueado} /></div>
 
-      {view === 'reais' && <ConversasReais onMudou={carregar} bloqueado={publicando || !!dados?.demo} />}
+      {abertas.has('reais') && <div className={view === 'reais' ? '' : 'hidden'}><ConversasReais onMudou={carregar} bloqueado={bloqueado} /></div>}
 
-      {view === 'textos' && (
-        <div className="space-y-8">
+      {abertas.has('sabe') && (
+        <div className={`space-y-8 ${view === 'sabe' ? '' : 'hidden'}`}>
+          <p className="text-[12.5px] text-body-muted">Só leitura. Para mudar qualquer coisa, peça em Pedir mudança. Clique num texto para abrir.</p>
           {grupos.map(([g, titulo]) => (
-            <section key={g}>
-              <SectionTitle eyebrow={titulo.toUpperCase()} title={titulo} />
-              <div className="space-y-3">
-                {itens.filter(i => i.grupo === g).map(i => <Item key={i.id} item={i} post={post} bloqueado={publicando || !!dados?.demo} />)}
+            <section key={g} className="space-y-3">
+              <h2 className="font-impact font-bold text-[18px] md:text-[20px] text-ink">{titulo}</h2>
+              <div className="space-y-2">
+                {itens.filter(i => i.grupo === g).map(i => <Item key={i.id} item={i} post={post} bloqueado={bloqueado} />)}
               </div>
             </section>
           ))}
           {!dados && !erro && <div className="panel h-60 animate-pulse surface-alt" />}
+          <ComoConduz />
         </div>
-      )}
-
-      {view === 'conduz' && <ComoConduz />}
-
-      {view === 'historico' && (
-        <section>
-          <SectionTitle eyebrow="VERSÕES PUBLICADAS" title="O que já esteve no ar." description="Voltar para uma versão vale na hora (ela já passou no exame quando foi publicada) e vira uma versão nova." />
-          <div className="panel overflow-hidden">
-            {dados && (
-              <div className="px-5 py-4 flex items-center gap-3">
-                <CheckCircle2 size={15} className="text-success shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-medium text-ink">Versão {dados.versao} · no ar</div>
-                  <div className="text-[11.5px] text-body-muted mt-0.5">{dados.publicadoEm ? `${dataHora(dados.publicadoEm)} · ${dados.nota || 'sem nota'}` : 'textos originais da implantação'}</div>
-                </div>
-              </div>
-            )}
-            {(dados?.historico || []).map(h => (
-              <div key={`${h.versao}-${h.publicadoEm}`} className="px-5 py-4 flex items-center gap-3 border-t border-line-soft">
-                <History size={15} className="text-body-faint shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] text-ink">Versão {h.versao}</div>
-                  <div className="text-[11.5px] text-body-muted mt-0.5">{h.publicadoEm ? `${dataHora(h.publicadoEm)} · ${h.nota || 'sem nota'}` : 'textos originais da implantação'}</div>
-                </div>
-                <button type="button" disabled={publicando || !!dados?.demo}
-                  onClick={() => { if (confirm(`Voltar para a versão ${h.versao}? Ela passa a valer no WhatsApp agora.`)) void post({ acao: 'voltar', versao: h.versao }) }}
-                  className="inline-flex items-center gap-1.5 text-[11.5px] text-cyan disabled:opacity-40"><Undo2 size={12} /> Voltar para esta</button>
-              </div>
-            ))}
-            {dados && !dados.historico.length && <div className="px-5 py-4 border-t border-line-soft text-[12px] text-body-muted">Nenhuma versão anterior ainda.</div>}
-          </div>
-        </section>
       )}
     </div>
   )
@@ -229,21 +226,22 @@ function Item({ item, post, bloqueado }: { item: BaseItem; post: Post; bloqueado
   const atual = noRascunho ? item.rascunho! : item.noAr
   const editadoNoAr = item.grupo !== 'extras' && item.noAr !== item.padrao
   return (
-    <article className={`panel overflow-hidden ${noRascunho ? 'border-warning/30' : ''}`}>
-      <div className="px-5 pt-4 pb-3 flex items-start gap-3 flex-wrap">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-[14px] font-medium text-ink">{item.titulo}</h3>
-            {noRascunho && <span className="font-mono text-[8.5px] tracking-[0.1em] px-1.5 py-0.5 rounded border border-warning/40 text-warning">{removido ? 'SAI NO RASCUNHO' : item.noAr ? 'RASCUNHO' : 'NOVA NO RASCUNHO'}</span>}
-            {!noRascunho && editadoNoAr && <span className="font-mono text-[8.5px] tracking-[0.1em] px-1.5 py-0.5 rounded border border-cyan/40 text-cyan">ALTERADO PELA EQUIPE</span>}
-          </div>
-          <p className="text-[11.5px] text-body-muted leading-relaxed mt-1">{item.ajuda}</p>
+    <details open={noRascunho} className={`panel overflow-hidden group ${noRascunho ? 'border-warning/30' : ''}`}>
+      <summary className="list-none cursor-pointer px-5 py-3.5 flex items-center gap-3 hover-raise">
+        <div className="min-w-0 flex-1 flex items-center gap-2 flex-wrap">
+          <h3 className="text-[13.5px] font-medium text-ink">{item.titulo}</h3>
+          {noRascunho && <span className="font-mono text-[8.5px] tracking-[0.1em] px-1.5 py-0.5 rounded border border-warning/40 text-warning">{removido ? 'SAI NO RASCUNHO' : item.noAr ? 'RASCUNHO' : 'NOVA NO RASCUNHO'}</span>}
+          {!noRascunho && editadoNoAr && <span className="font-mono text-[8.5px] tracking-[0.1em] px-1.5 py-0.5 rounded border border-cyan/40 text-cyan">ALTERADO</span>}
         </div>
-        {noRascunho && (
-          <button type="button" disabled={bloqueado} onClick={() => post({ acao: 'descartar', id: item.id })} className="inline-flex items-center gap-1 text-[11.5px] text-body-faint hover:text-ink disabled:opacity-40 shrink-0"><XCircle size={12} /> descartar do rascunho</button>
-        )}
-      </div>
+        <span className="text-[11px] text-body-faint group-open:rotate-90 transition-transform shrink-0">▷</span>
+      </summary>
       <div className="px-5 pb-5">
+        <div className="flex items-start gap-3 mb-3">
+          <p className="text-[11.5px] text-body-muted leading-relaxed flex-1">{item.ajuda}</p>
+          {noRascunho && (
+            <button type="button" disabled={bloqueado} onClick={() => post({ acao: 'descartar', id: item.id })} className="inline-flex items-center gap-1 text-[11.5px] text-body-faint hover:text-ink disabled:opacity-40 shrink-0"><XCircle size={12} /> descartar do rascunho</button>
+          )}
+        </div>
         {removido
           ? <div className="surface-alt rounded-[8px] px-4 py-3 text-[12.5px] leading-relaxed text-body-mid whitespace-pre-wrap break-words line-through">{item.noAr}</div>
           : <div className="surface-alt rounded-[8px] px-4 py-3 text-[12.5px] leading-relaxed text-ink whitespace-pre-wrap break-words">{atual}</div>}
@@ -259,7 +257,7 @@ function Item({ item, post, bloqueado }: { item: BaseItem; post: Post; bloqueado
           </details>
         )}
       </div>
-    </article>
+    </details>
   )
 }
 
@@ -305,10 +303,11 @@ function Conversa({ dados, post, bloqueado }: { dados: (BaseEstado & { demo?: bo
   const [desfazendo, setDesfazendo] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [lendo, setLendo] = useState(false)
-  const fim = useRef<HTMLDivElement>(null)
+  const lista = useRef<HTMLDivElement>(null)
   const msgs = dados?.conversa || []
 
-  useEffect(() => { fim.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [msgs.length, enviando])
+  // rola só a caixa da conversa (a página fica onde está)
+  useEffect(() => { const l = lista.current; if (l) l.scrollTop = l.scrollHeight }, [msgs.length, enviando])
 
   const adicionar = async (lista: FileList | null) => {
     if (!lista?.length) return
@@ -346,13 +345,12 @@ function Conversa({ dados, post, bloqueado }: { dados: (BaseEstado & { demo?: bo
 
   return (
     <section className="space-y-4">
-      <SectionTitle eyebrow="PEDIR MUDANÇA" title="Diga o que mudar; a IA faz." description="Escreva como falaria com alguém da equipe. A IA decide onde a mudança entra, escreve no rascunho e mostra o antes e o depois. Correções feitas no Teste e nas conversas reais também aparecem aqui." />
       <div className="panel overflow-hidden flex flex-col">
-        <div className="p-4 md:p-5 space-y-4 max-h-[64vh] overflow-y-auto scroll-thin">
+        <div ref={lista} className="p-4 md:p-5 space-y-4 max-h-[64vh] overflow-y-auto scroll-thin">
           {!msgs.length && (
             <div className="py-6 text-center">
               <MessagesSquare size={20} className="text-cyan mx-auto" />
-              <p className="text-[13px] text-body-mid mt-3">Nenhum pedido ainda. Exemplos:</p>
+              <p className="text-[13px] text-body-mid mt-3 max-w-[560px] mx-auto">Escreva como falaria com alguém da equipe. A IA decide onde a mudança entra e mostra o antes e o depois. As correções feitas no Teste e nas conversas reais também aparecem aqui. Exemplos:</p>
               <div className="flex flex-wrap justify-center gap-2 mt-4">
                 {EXEMPLOS.map(e => <button key={e} type="button" disabled={bloqueado || enviando} onClick={() => enviar(e)} className="px-3 py-2 rounded-full border border-line-soft text-[11.5px] text-body-mid hover:text-ink hover:border-cyan/25 disabled:opacity-40">{e}</button>)}
               </div>
@@ -398,7 +396,6 @@ function Conversa({ dados, post, bloqueado }: { dados: (BaseEstado & { demo?: bo
             </div>
           ))}
           {enviando && <div className="text-[11.5px] text-body-muted animate-pulse">{lendo ? 'A IA está lendo o material e a base… (arquivo grande ou PDF pode levar até 1 minuto)' : 'A IA está lendo o pedido e a base… (uns 10 segundos)'}</div>}
-          <div ref={fim} />
         </div>
         <div className={`border-t border-line-soft p-3 md:p-4 transition-colors ${arrastando ? 'bg-cyan/[0.06]' : ''}`}
           onDragOver={e => { if (bloqueado) return; e.preventDefault(); setArrastando(true) }}
@@ -427,8 +424,7 @@ function Conversa({ dados, post, bloqueado }: { dados: (BaseEstado & { demo?: bo
             <button type="button" onClick={() => enviar()} disabled={(!texto.trim() && !arquivos.length) || enviando || bloqueado} aria-label="Enviar pedido"
               className="px-4 rounded-[10px] border border-cyan/30 bg-cyan/[0.12] text-cyan disabled:opacity-30">{enviando ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}</button>
           </div>
-          <p className="text-[10.5px] text-body-faint mt-2 inline-flex items-start gap-1.5"><Paperclip size={11} className="shrink-0 mt-[1px]" /><span>Anexe PDF, Word (.docx), texto, CSV ou imagem (até 3 arquivos, 3 MB no total; pode arrastar para cá) ou cole um link na mensagem (site, Google Docs ou Planilhas compartilhados). A IA lê, tira só o que a assistente precisa e mostra o que mudou; o arquivo não fica guardado.</span></p>
-          <p className="text-[10.5px] text-body-faint mt-1.5">Regra de atendimento (ordem das perguntas, quando passar para a equipe) vira pedido para a Control Gestão. Taxa e preço não entram na base.{dados?.pedidosControlGestao ? ` ${dados.pedidosControlGestao} pedido(s) registrados para a Control Gestão.` : ''}</p>
+          <p className="text-[10.5px] text-body-faint mt-2 leading-relaxed">Pode anexar PDF, Word, texto, CSV ou imagem (até 3 arquivos, 3 MB, ou arraste para cá) ou colar um link de site, Google Docs ou Planilhas. Taxa e preço não entram; regra de atendimento vira pedido para a Control Gestão{dados?.pedidosControlGestao ? ` (${dados.pedidosControlGestao} registrado${dados.pedidosControlGestao === 1 ? '' : 's'})` : ''}.</p>
         </div>
       </div>
     </section>
@@ -482,7 +478,7 @@ function ConversasReais({ onMudou, bloqueado }: { onMudou: () => void; bloqueado
 
   return (
     <section className="space-y-4">
-      <SectionTitle eyebrow="CONVERSAS REAIS" title="O que ela respondeu no WhatsApp." description="Abra uma conversa e clique em Corrigir na resposta que saiu errada. A IA analisa e ajusta a base, igual no Teste. CPF, CNPJ, telefone e e-mail aparecem mascarados." />
+      <p className="text-[12.5px] text-body-muted">Abra uma conversa do WhatsApp e clique em Corrigir na resposta que saiu errada. CPF, CNPJ, telefone e e-mail aparecem mascarados.</p>
       {erro && <div className="panel p-5 text-[12.5px] text-warning">Não consegui ler as conversas: {erro}</div>}
       <div className="grid lg:grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
         <div className="panel overflow-hidden">

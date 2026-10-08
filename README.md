@@ -43,7 +43,7 @@ Lead manda mensagem no WhatsApp
 | `POST /api/reset?secret=…&phone=…` ou `&contact_id=…` | reset de teste (só contatos de teste; `&forcar=1` para outro) |
 | `GET /api/validate?secret=…` | prova o mapa contra o GHL vivo. Tem que dar `ok: true` antes de ligar |
 | `GET /api/executions?secret=…&limit=50` | diário: respostas, passagens, erros, custo |
-| `GET /api/central?recurso=execucoes\|live\|recuperacao` | dados da Central (header `x-central-secret: <CENTRAL_SECRET>`). Só leitura, zero tokens |
+| `GET /api/central?recurso=execucoes\|live` | dados da Central (header `x-central-secret: <CENTRAL_SECRET>`). Só leitura, zero tokens |
 | `GET/POST /api/base` | Aba Ensinar da Central: pedir mudança à IA (curador, com até 3 arquivos ou links), conversas reais (`?conversas=1`, `?conversa=<id>`), corrigir resposta do laboratório ou real, desfazer, publicar com exame (14 cenários), voltar versão. Não existe edição manual |
 | `GET/POST /api/teste` | laboratório da Central: conversa com a assistente numa porta em memória (nada vai para o GHL) |
 | `GET /painel` | redireciona para a Central |
@@ -53,8 +53,11 @@ Lead manda mensagem no WhatsApp
 **https://central-inovpay.vercel.app** · identidade da Control Gestão, padrão Central v4.1, em `central/`
 (projeto Vercel próprio, `central-inovpay`). Três abas:
 
-- **Estatísticas**: visão geral com briefing, operação (agora, passagens com resumo e link do contato,
-  histórico auditável, funil do GHL), resultados (triagem, motivos, custo) e sistema (conferência do CRM).
+- **Estatísticas**: visão geral (veredito, o que pede decisão e quatro números de hoje), operação (agora,
+  passagens com resumo e link do contato, histórico auditável, funil do GHL com as oportunidades paradas),
+  resultados (resumo e triagem em 7 ou 30 dias, custo) e sistema (agente, CRM e quem ela atende). As subabas
+  e o "Pergunte à Central" (no menu, Ctrl K) dividem a mesma leitura por 1 minuto: trocar de subaba não busca
+  o CRM de novo.
 - **Teste**: laboratório. Conversa com a assistente de verdade (mesmo cérebro, ferramentas e travas) numa
   porta em memória; mostra o que mudaria no contato (tags, CPF/CNPJ, anotações, nota). Pode usar os textos
   no ar ou o rascunho da base. Limite de 300 mensagens por dia.
@@ -66,7 +69,8 @@ Lead manda mensagem no WhatsApp
   com a chave OpenAI do cliente) decide o destino: muda o texto por troca exata de trecho, acrescenta informação
   (seção 11 do prompt), registra pedido para a Control Gestão (regra de atendimento) ou recusa (taxa, preço,
   senha). Tudo vai para o rascunho; publicar roda o exame (14 cenários; cenário que falha roda mais 2 vezes e
-  precisa passar nas duas). Histórico de versões com "voltar para esta".
+  precisa passar nas duas). Três subabas: Pedir mudança, Conversas reais e O que ela sabe (textos recolhidos,
+  roteiro e travas, só leitura); as versões anteriores, com "voltar para esta", ficam recolhidas no quadro do topo.
 - **Material para ensinar**: no "Pedir mudança" dá para anexar até 3 arquivos (PDF, Word .docx, texto, Markdown,
   CSV ou imagem; 3 MB no total) ou colar até 3 links (site, Google Docs ou Planilhas compartilhados com "qualquer
   pessoa com o link"). `lib/material.ts` transforma em texto uma vez (PDF e imagem lidos pela OpenAI com a chave do

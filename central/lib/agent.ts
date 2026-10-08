@@ -1,7 +1,7 @@
 import 'server-only'
 import { demo } from './demo'
 
-export type Recurso = 'execucoes' | 'live' | 'recuperacao' | 'base' | 'teste' | 'reais'
+export type Recurso = 'execucoes' | 'live' | 'base' | 'teste' | 'reais'
 
 /**
  * Lê o agente no servidor (o segredo nunca vai ao navegador).

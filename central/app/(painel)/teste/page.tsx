@@ -1,8 +1,7 @@
 'use client'
 
-import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowRight, Bot, ChevronDown, FlaskConical, MessagesSquare, PenLine, RotateCcw, Send, ShieldCheck, Tags, UserRound } from 'lucide-react'
+import { Bot, ChevronDown, FlaskConical, PenLine, RotateCcw, Send, ShieldCheck, Tags, UserRound } from 'lucide-react'
 import CorrigirPainel from '@/components/CorrigirPainel'
 import { PageIntro, SectionTitle } from '@/components/ProductUI'
 import { brl, MOTIVO_ROTULO } from '@/lib/format'
@@ -45,7 +44,7 @@ export default function Teste() {
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [demo, setDemo] = useState(false)
-  const fim = useRef<HTMLDivElement>(null)
+  const lista = useRef<HTMLDivElement>(null)
   const [corrigindo, setCorrigindo] = useState<string | null>(null)
   const [correcoes, setCorrecoes] = useState<Record<string, MsgConversa>>({})
   const opcoes = sessao?.opcoes || PADRAO
@@ -74,7 +73,8 @@ export default function Teste() {
     fetch(`/api/teste?sessao=${sid}`).then(r => r.json()).then(aplicar).catch(e => setErro(String(e)))
   }, [recomecar])
 
-  useEffect(() => { fim.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [sessao?.history.length, enviando])
+  // rola só a caixa da conversa (a página fica onde está)
+  useEffect(() => { const l = lista.current; if (l) l.scrollTop = l.scrollHeight }, [sessao?.history.length, enviando])
 
   const enviar = async (msg = texto) => {
     const t = msg.trim()
@@ -118,7 +118,7 @@ export default function Teste() {
         <Opcao rotulo="Horário" valor={opcoes.fora ? 'fora' : 'dentro'} onChange={v => trocar({ fora: v === 'fora' })}
           itens={[['dentro', 'Dentro'], ['fora', 'Fora do horário']]} />
         <Opcao rotulo="Textos" valor={opcoes.versao} onChange={v => trocar({ versao: v as TesteOpcoes['versao'] })}
-          itens={[['vigente', 'No ar'], ['rascunho', 'Rascunho da base']]} />
+          itens={[['vigente', 'No ar'], ['rascunho', 'Rascunho']]} />
         <button type="button" onClick={() => id && recomecar(id, opcoes)} className="ml-auto inline-flex items-center gap-2 px-3.5 py-2 rounded-[8px] border border-line-soft text-[12px] text-body-mid hover:text-ink hover-raise">
           <RotateCcw size={13} /> Recomeçar
         </button>
@@ -126,15 +126,7 @@ export default function Teste() {
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-5 items-start">
         <section className="panel overflow-hidden flex flex-col min-h-[520px]">
-          <div className="px-4 md:px-5 py-3 border-b border-line-soft flex items-center gap-3">
-            <span className="w-8 h-8 rounded-full border border-cyan/25 bg-cyan/[0.08] text-cyan flex items-center justify-center"><Bot size={15} /></span>
-            <div className="min-w-0">
-              <div className="text-[13px] font-medium text-ink">Assistente virtual · InovPay</div>
-              <div className="text-[10.5px] text-body-muted">{opcoes.versao === 'rascunho' ? 'usando o rascunho de Ensinar' : 'usando os textos que estão no ar'}{opcoes.fora ? ' · simulando fora do horário' : ''}</div>
-            </div>
-          </div>
-
-          <div className="flex-1 p-4 md:p-5 space-y-3 overflow-y-auto max-h-[62vh] scroll-thin">
+          <div ref={lista} className="flex-1 p-4 md:p-5 space-y-3 overflow-y-auto max-h-[62vh] scroll-thin">
             {!historia.length && (
               <div className="py-8 text-center">
                 <FlaskConical size={20} className="text-cyan mx-auto" />
@@ -173,7 +165,6 @@ export default function Teste() {
               )
             })}
             {enviando && <div className="text-[11.5px] text-body-muted animate-pulse">A assistente está escrevendo… (pode levar uns 15 segundos)</div>}
-            <div ref={fim} />
           </div>
 
           <div className="border-t border-line-soft p-3 md:p-4">
@@ -228,17 +219,9 @@ export default function Teste() {
               )}
             </div>
           </section>
-          <Link href="/ensinar?ver=reais" className="panel interactive-card p-4 flex items-start gap-3">
-            <MessagesSquare size={15} className="text-cyan shrink-0 mt-0.5" />
-            <span className="min-w-0">
-              <span className="block text-[12.5px] font-medium text-ink">Corrigir uma conversa real</span>
-              <span className="block text-[11px] text-body-muted mt-0.5 leading-relaxed">Viu algo errado no WhatsApp? Abra a conversa e corrija a resposta do mesmo jeito.</span>
-            </span>
-            <ArrowRight size={13} className="text-cyan shrink-0 mt-1 ml-auto" />
-          </Link>
           <p className="text-[10.5px] text-body-faint leading-relaxed px-1">
             {sessao ? `Esta conversa: ${sessao.turnos} mensagem(ns), ${brl(sessao.custoUsd * usdBrl, 3)} de modelo. ` : ''}
-            {uso ? `Laboratório hoje: ${uso.mensagens} de ${uso.limite} mensagens, ${brl(uso.custoUsd * usdBrl, 2)}.` : ''} Fotos e áudios não entram no teste. Escreva &quot;reset&quot; para recomeçar.
+            {uso ? `Laboratório hoje: ${uso.mensagens} de ${uso.limite} mensagens, ${brl(uso.custoUsd * usdBrl, 2)}.` : ''} Fotos e áudios não entram no teste.
           </p>
         </aside>
       </div>

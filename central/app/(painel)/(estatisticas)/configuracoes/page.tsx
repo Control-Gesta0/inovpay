@@ -1,33 +1,27 @@
 'use client'
 
-import { AlertTriangle, CheckCircle2, Cpu, Database, Repeat2, Server, Tags } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Database, Server, Tags } from 'lucide-react'
 import RefreshButton from '@/components/RefreshButton'
 import { PageIntro, SectionTitle } from '@/components/ProductUI'
-import { SISTEMA_VERSAO } from '@/components/Sidebar'
-import { useExecutions, useLive, useRecovery } from '@/lib/hooks'
+import { useExecutions, useLive } from '@/lib/hooks'
 
 export default function Configuracoes() {
   const { data: live, erro: liveErro, carregando } = useLive()
   const { data: exec, erro: execErro } = useExecutions()
-  const { data: rec } = useRecovery()
   const crmOk = !!live && live.saude.crmOk && !liveErro
 
   return (
     <div className="space-y-8">
-      <PageIntro eyebrow="CONFIGURAÇÕES" title="Sistema e" accent="conexões." description="Estado das integrações que sustentam a assistente. Somente leitura." action={<RefreshButton />} />
+      <PageIntro eyebrow="SISTEMA" title="Conexões da" accent="assistente." description="Se o agente e o CRM estão respondendo, e quem ela atende. Somente leitura." action={<RefreshButton />} />
 
       <section>
-        <SectionTitle eyebrow="SAÚDE" title="As fontes do painel." />
-        <div className="grid md:grid-cols-2 gap-3">
-          <Linha icon={Server} titulo="Agente (diário de execuções)" ok={!!exec && !execErro} carregando={!exec && !execErro}
-            texto={execErro || (exec ? `${exec.cobertura.registros} execuções no diário · modelo ${exec.modelo}` : 'verificando…')} />
+        <div className="grid md:grid-cols-3 gap-3">
+          <Linha icon={Server} titulo="Agente (diário de execuções)" ok={!!exec && !execErro && !exec.saude24h.erros} carregando={!exec && !execErro}
+            texto={execErro || (exec ? `${exec.saude24h.erros ? `${exec.saude24h.erros} erro(s) em ${exec.saude24h.total} execuções nas últimas 24h` : `sem erro nas últimas 24h (${exec.saude24h.total} execuções)`} · ${exec.cobertura.registros} no diário · modelo ${exec.modelo}` : 'verificando…')} />
           <Linha icon={Database} titulo="CRM (GoHighLevel)" ok={crmOk} carregando={carregando}
             texto={liveErro || (live ? (live.saude.crmOk ? `Mapa conferido: campo CPF/CNPJ e pipeline ${live.pipeline.nome} batem com a conta · ${live.leads.total} oportunidades` : `${live.saude.problemas.length} divergência(s)`) : 'verificando…')} />
-          <Linha icon={Repeat2} titulo="Follow-up automático" ok={!!rec?.ativo} neutro={!!rec && !rec.ativo} carregando={!rec}
-            texto={rec ? (rec.ativo ? `Ligado · ${rec.fila.length} na fila` : 'Fora do escopo desta fase') : 'verificando…'} />
           <Linha icon={Tags} titulo="Quem a assistente atende" ok neutro carregando={!live}
-            texto={live ? regraGate(live.regras) : 'verificando…'} />
-          <Linha icon={Cpu} titulo="Versão da Central" ok neutro texto={`${SISTEMA_VERSAO} · expediente da equipe: ${live?.regras.expediente || '…'}`} />
+            texto={live ? `${regraGate(live.regras)} Expediente da equipe: ${live.regras.expediente}.` : 'verificando…'} />
         </div>
       </section>
 

@@ -1,33 +1,56 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { ExecutionData, LiveData, RecoveryData } from './types'
+import type { ExecutionData, LiveData } from './types'
 
 /**
- * Carrega UMA vez ao abrir a página. Refresh só manual: o botão dispara o
- * evento 'central:refresh' (nada de polling martelando o CRM).
+ * Uma leitura por fonte, compartilhada: as subabas de Estatísticas e o
+ * "Pergunte à Central" usam o mesmo dado por 1 minuto (trocar de subaba não
+ * busca o CRM de novo). Refresh só manual: o botão dispara 'central:refresh'
+ * (nada de polling martelando o CRM). Durante o refresh, o dado anterior fica.
  */
+const VALIDADE = 60_000
+
+interface Entrada { em: number; data?: unknown; erro?: string; buscando?: boolean }
+const cache = new Map<string, Entrada>()
+const ouvintes = new Map<string, Set<() => void>>()
+
+function avisar(path: string) {
+  ouvintes.get(path)?.forEach(f => f())
+}
+
+function buscar(path: string, forcar = false) {
+  const atual = cache.get(path)
+  if (atual?.buscando) return
+  if (!forcar && atual && Date.now() - atual.em < VALIDADE) return
+  const e: Entrada = { em: Date.now(), data: atual?.data, buscando: true }
+  cache.set(path, e)
+  avisar(path)
+  fetch(path, { cache: 'no-store' })
+    .then(r => r.json())
+    .then(d => { if (d.error) { e.erro = String(d.error); e.data = undefined } else e.data = d })
+    .catch(err => { e.erro = String(err) })
+    .finally(() => { e.buscando = false; e.em = Date.now(); avisar(path) })
+}
+
 function useFonte<T>(path: string) {
-  const [data, setData] = useState<(T & { demo?: boolean }) | null>(null)
-  const [erro, setErro] = useState<string | null>(null)
-  const [carregando, setCarregando] = useState(true)
+  const [, render] = useState(0)
   useEffect(() => {
-    let on = true
-    const load = () => {
-      setCarregando(true)
-      fetch(path, { cache: 'no-store' })
-        .then(r => r.json())
-        .then(d => { if (!on) return; if (d.error) { setErro(String(d.error)); setData(null) } else { setData(d); setErro(null) } })
-        .catch(e => on && setErro(String(e)))
-        .finally(() => on && setCarregando(false))
-    }
-    load()
-    window.addEventListener('central:refresh', load)
-    return () => { on = false; window.removeEventListener('central:refresh', load) }
+    const ouvir = () => render(n => n + 1)
+    if (!ouvintes.has(path)) ouvintes.set(path, new Set())
+    ouvintes.get(path)!.add(ouvir)
+    buscar(path)
+    const atualizar = () => buscar(path, true)
+    window.addEventListener('central:refresh', atualizar)
+    return () => { ouvintes.get(path)?.delete(ouvir); window.removeEventListener('central:refresh', atualizar) }
   }, [path])
-  return { data, erro, carregando }
+  const e = cache.get(path)
+  return {
+    data: (e?.data ?? null) as (T & { demo?: boolean }) | null,
+    erro: e?.erro ?? null,
+    carregando: !e || (!!e.buscando && e.data === undefined),
+  }
 }
 
 export const useExecutions = () => useFonte<ExecutionData>('/api/exec')
 export const useLive = () => useFonte<LiveData>('/api/live')
-export const useRecovery = () => useFonte<RecoveryData>('/api/recuperacao')

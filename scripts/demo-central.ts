@@ -1,7 +1,7 @@
 // npx tsx scripts/demo-central.ts — gera central/lib/demo-data.json (dados FICTÍCIOS)
 // com as mesmas funções que o agente usa em /api/central. Só para CENTRAL_DEMO=1.
 import { readFileSync, writeFileSync } from 'fs'
-import { buildConversas, buildExecutionData, buildFunil, buildRecovery, type GhlOppResumo } from '../lib/central-data'
+import { buildConversas, buildExecutionData, buildFunil, type GhlOppResumo } from '../lib/central-data'
 import { listarConversas, turnosDoContato } from '../lib/conversas-reais'
 import type { ExecEntry } from '../lib/execlog'
 import { GRUPOS, ITENS, textosPadrao, validarTexto } from '../lib/base-core'
@@ -168,5 +168,5 @@ const teste = {
 }
 const conversas = listarConversas(entries, 30)
 const reais = { conversas, turnos: Object.fromEntries(conversas.map(c => [c.contato, turnosDoContato(entries, c.contato)])) }
-writeFileSync('central/lib/demo-data.json', JSON.stringify({ execucoes, live, recuperacao: buildRecovery(), base, teste, reais }))
+writeFileSync('central/lib/demo-data.json', JSON.stringify({ execucoes, live, base, teste, reais }))
 console.log(`demo: ${entries.length} execuções, ${opps.length} oportunidades → central/lib/demo-data.json`)

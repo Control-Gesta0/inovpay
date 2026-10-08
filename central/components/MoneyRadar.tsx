@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, ArrowRight, ChevronDown, CircleDollarSign, Radar, TimerReset } from 'lucide-react'
+import { AlertTriangle, ChevronDown, CircleDollarSign, Radar, TimerReset } from 'lucide-react'
 import type { LiveData } from '@/lib/types'
 import { brl } from '@/lib/format'
 import { buildMoneyRadar } from '@/lib/intelligence'
@@ -16,13 +16,13 @@ export default function MoneyRadar({ live }: { live: LiveData | null }) {
 
   return (
     <section id="radar" className="panel overflow-hidden scroll-mt-8">
-      <div className="p-5 md:p-6 border-b border-line-soft">
+      <div className={`p-5 md:p-6 ${signals.length ? 'border-b border-line-soft' : ''}`}>
         <SectionTitle
-          eyebrow="RADAR DE DINHEIRO NA MESA · ZERO TOKENS"
-          title={count ? `${count} oportunidades merecem ação.` : 'Nenhum sinal crítico pelo critério atual.'}
+          eyebrow="PARADAS HÁ 7 DIAS OU MAIS"
+          title={count ? `${count} ${count === 1 ? 'oportunidade merece' : 'oportunidades merecem'} ação.` : 'Nenhuma oportunidade parada.'}
           description={count
-            ? `${value ? `${brl(value, 0)} em valor aberto atravessa as etapas sinalizadas. ` : ''}O radar procura cards sem mudança há 7 dias ou mais.`
-            : 'O radar analisa automaticamente tempo parado e valor aberto por etapa.'}
+            ? `${value ? `${brl(value, 0)} em valor aberto nas etapas abaixo. ` : ''}Abertas sem mudar de etapa há 7 dias ou mais.`
+            : 'Nenhuma oportunidade aberta está há 7 dias ou mais sem mudar de etapa.'}
           action={
             <div className="state-orb text-success bg-success/[0.08]"><Radar size={17} /></div>
           }
@@ -42,9 +42,8 @@ export default function MoneyRadar({ live }: { live: LiveData | null }) {
                     <h3 className="font-impact font-bold text-[14px] text-ink">{s.title}</h3>
                     {s.value > 0 && <span className="font-mono text-[10px] text-success">{brl(s.value, 0)}</span>}
                   </div>
-                  <p className="text-[11.5px] leading-relaxed text-body-mid mt-2">{s.explanation}</p>
                   {s.samples.length > 0 && (
-                    <div className="mt-4 space-y-1.5">
+                    <div className="mt-3 space-y-1.5">
                       {s.samples.map(a => (
                         <div key={a.id} className="surface-alt rounded-md px-3 py-2 flex items-center gap-2">
                           <TimerReset size={11} className="text-warning shrink-0" />
@@ -55,15 +54,12 @@ export default function MoneyRadar({ live }: { live: LiveData | null }) {
                       ))}
                     </div>
                   )}
-                  <div className="inline-flex items-center gap-1 text-[10.5px] text-cyan mt-4">Priorizar no CRM <ArrowRight size={10} /></div>
                 </div>
               </div>
             </div>
           ))}
         </div>
-      ) : (
-        <div className="p-8 text-center text-[12px] text-body-muted">O critério atual não encontrou oportunidade aberta sem mudança há 7 dias.</div>
-      )}
+      ) : null}
 
       {signals.length > 2 && (
         <div className="px-5 py-4 border-t border-line-soft flex items-center justify-between gap-4">
@@ -81,9 +77,11 @@ export default function MoneyRadar({ live }: { live: LiveData | null }) {
         </div>
       )}
 
-      <div className="px-5 py-3 border-t border-line-soft text-[9.5px] text-body-faint">
-        Valor aberto não é receita garantida. O radar prioriza investigação; não atribui venda à IA. O valor depende do campo Valor da oportunidade estar preenchido no GHL.
-      </div>
+      {signals.length > 0 && (
+        <div className="px-5 py-3 border-t border-line-soft text-[9.5px] text-body-faint">
+          Valor aberto não é receita garantida e não é atribuído à IA; depende do campo Valor da oportunidade no GHL.
+        </div>
+      )}
     </section>
   )
 }

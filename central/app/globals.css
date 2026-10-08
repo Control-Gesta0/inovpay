@@ -130,24 +130,6 @@ body {
   border-radius: 10px;
   background: var(--surface);
 }
-.command-fab {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  padding: 11px 14px;
-  border: 1px solid rgba(6,182,212,.32);
-  border-radius: 11px;
-  color: #22d3ee;
-  background: color-mix(in srgb, var(--surface) 90%, #062b34 10%);
-  box-shadow: 0 14px 40px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.04);
-  font-size: 12px;
-  transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
-}
-.command-fab:hover {
-  border-color: rgba(34,211,238,.55);
-  background: color-mix(in srgb, var(--surface) 84%, #063b49 16%);
-  box-shadow: 0 16px 48px rgba(0,0,0,.3), 0 0 24px rgba(6,182,212,.08);
-}
 .command-panel {
   border: 1px solid rgba(6,182,212,.22);
   border-radius: 14px;

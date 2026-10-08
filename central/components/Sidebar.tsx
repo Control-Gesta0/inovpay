@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart3, FlaskConical, GraduationCap, LogOut } from 'lucide-react'
+import { BarChart3, FlaskConical, GraduationCap, LogOut, Sparkles } from 'lucide-react'
 import Logo from './Logo'
 import ToggleTema from './ToggleTema'
 import { sair } from '@/app/login/acoes'
+import { abrirPergunta } from './CentralCommand'
 
 export const NOME_CLIENTE = 'InovPay'
 /** a assistente virtual da InovPay no WhatsApp (feminino nos textos: "a assistente") */
@@ -63,6 +64,15 @@ export default function Sidebar() {
           })}
         </nav>
 
+        <div className="px-3 pb-3">
+          <button type="button" onClick={abrirPergunta}
+            className="w-full flex items-center gap-2.5 px-3.5 py-3 rounded-[7px] border border-cyan/20 bg-cyan/[0.05] text-cyan hover:bg-cyan/[0.1] transition-colors">
+            <Sparkles size={15} className="shrink-0" />
+            <span className="text-[12.5px] font-medium flex-1 text-left whitespace-nowrap">Pergunte à Central</span>
+            <kbd className="font-mono text-[8px] px-1.5 py-0.5 rounded border border-cyan/30 opacity-80">Ctrl K</kbd>
+          </button>
+        </div>
+
         <div className="px-6 py-5 border-t border-line-soft flex items-end justify-between gap-2">
           <div className="font-mono text-[9px] text-body-faint tracking-wide">{SISTEMA_VERSAO}</div>
           <form action={sair}>
@@ -74,7 +84,11 @@ export default function Sidebar() {
       <div className="md:hidden sticky top-0 z-50 border-b border-line-soft sidebar-shell px-4 py-3">
         <div className="flex items-center justify-between mb-3">
           <Logo altura={26} />
-          <ToggleTema />
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={abrirPergunta} aria-label="Pergunte à Central"
+              className="w-8 h-8 rounded-[7px] border border-cyan/25 bg-cyan/[0.06] text-cyan flex items-center justify-center"><Sparkles size={14} /></button>
+            <ToggleTema />
+          </div>
         </div>
         <nav className="flex gap-1 overflow-x-auto scroll-thin pb-1">
           {NAV.map(({ href, label, Icon }) => (

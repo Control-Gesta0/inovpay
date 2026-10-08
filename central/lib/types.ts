@@ -101,16 +101,6 @@ export interface LiveData {
   saude: { crmOk: boolean; problemas: string[] }
 }
 
-export interface RecoveryData {
-  ativo: boolean
-  fila: Array<{ contactId: string; nome: string; proximoToque: number; quando: string }>
-  buckets: { vencidos: number; proximaHora: number; hoje: number; amanha: number; depois: number }
-  porToque: Array<{ toque: number; enviados: number; responderam: number; concretizaram: number }>
-  esgotados: number
-  definicao: { resposta: string; objetivo: string; janelaHoras: number; cadenciaHoras: number[] }
-  observacao: string
-}
-
 // ---------- Base de dados (espelho de ../api/base.ts e ../lib/exame.ts) ----------
 
 export interface BaseItem {

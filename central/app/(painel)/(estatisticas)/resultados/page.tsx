@@ -1,30 +1,28 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCheck, Filter, Info, LayoutDashboard, MessageSquareText, Radar, Users, Wallet } from 'lucide-react'
+import { CheckCheck, Filter, Headset, Info, LayoutDashboard, MessageSquareText, Wallet } from 'lucide-react'
 import RefreshButton from '@/components/RefreshButton'
 import { Metric, PageIntro, SectionTitle } from '@/components/ProductUI'
-import FocusNav, { type FocusItem } from '@/components/FocusNav'
-import MoneyRadar from '@/components/MoneyRadar'
 import { brl, pct } from '@/lib/format'
-import { useExecutions, useLive } from '@/lib/hooks'
+import { useExecutions } from '@/lib/hooks'
 import type { Marcos, MotivoN } from '@/lib/types'
 
-type View = 'resumo' | 'conversao' | 'radar'
+type View = 'resumo' | 'conversao'
+type Janela = 'seteDias' | 'trintaDias'
 
-const VIEWS: FocusItem<View>[] = [
-  { id: 'resumo', label: 'Resumo', description: 'Indicadores e custos', icon: LayoutDashboard },
-  { id: 'conversao', label: 'Triagem', description: 'Da mensagem à passagem', icon: Filter },
-  { id: 'radar', label: 'Dinheiro parado', description: 'Oportunidades sem movimento', icon: Radar },
+const VIEWS: Array<{ id: View; label: string; icon: typeof Filter }> = [
+  { id: 'resumo', label: 'Resumo', icon: LayoutDashboard },
+  { id: 'conversao', label: 'Triagem', icon: Filter },
 ]
 
 export default function Resultados() {
   const [view, setView] = useState<View>('resumo')
-  const [janela, setJanela] = useState<'seteDias' | 'trintaDias'>('trintaDias')
-  const { data: live } = useLive()
+  const [janela, setJanela] = useState<Janela>('trintaDias')
   const { data } = useExecutions()
   const f = data?.financeiro
-  const m = data?.marcos.trintaDias
+  const m = data?.marcos[janela]
+  const custo = f ? (janela === 'seteDias' ? f.seteDias : f.trintaDias) : 0
   const maxCusto = Math.max(...(f?.porDia || []).map(d => d.custo), 0.0001)
 
   useEffect(() => {
@@ -43,18 +41,24 @@ export default function Resultados() {
 
   return (
     <div className="space-y-8">
-      <PageIntro eyebrow="RESULTADOS E INVESTIMENTO" title="O valor produzido," accent="sem caixa-preta." description="Comece pelo resumo e aprofunde só a pergunta que quer responder." action={<RefreshButton />} />
-      <FocusNav items={VIEWS} value={view} onChange={trocar} label="Áreas de resultados" />
+      <PageIntro eyebrow="RESULTADOS E INVESTIMENTO" title="O valor produzido," accent="sem caixa-preta." description="Quantos a assistente atendeu, resolveu e passou para a equipe, e quanto custou." action={<RefreshButton />} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="segmented" aria-label="Áreas de resultados">
+          {VIEWS.map(v => <button key={v.id} onClick={() => trocar(v.id)} className={`whitespace-nowrap ${view === v.id ? 'active' : ''}`}><v.icon size={13} className="inline mr-1.5 -mt-0.5" />{v.label}</button>)}
+        </div>
+        <div className="segmented" aria-label="Período">
+          {(['seteDias', 'trintaDias'] as const).map(j => <button key={j} onClick={() => setJanela(j)} className={janela === j ? 'active' : ''}>{j === 'seteDias' ? '7 dias' : '30 dias'}</button>)}
+        </div>
+      </div>
 
       {view === 'resumo' && (
         <div className="space-y-7">
           <section>
-            <SectionTitle eyebrow="ÚLTIMOS 30 DIAS" title="Resumo executivo." />
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-              <Metric icon={MessageSquareText} label="Contatos atendidos" value={m ? String(m.atendidos) : '—'} hint="receberam resposta da assistente" color="#06b6d4" />
-              <Metric icon={Users} label="Clientes no suporte" value={m ? String(m.clientes) : '—'} hint={m ? `${m.naoClientes} não cliente(s) no comercial` : undefined} color="#3b82f6" />
-              <Metric icon={CheckCheck} label="Resolvidos sem a equipe" value={m ? String(m.resolvidos) : '—'} hint={m ? `${pct(m.resolvidos, m.atendidos)} dos atendidos · ${m.passagens} passagem(ns)` : undefined} color="#a78bfa" featured={(m?.resolvidos || 0) > 0} />
-              <Metric icon={Wallet} label="Custo do modelo" value={f?.execucoesComCusto ? brl(f.trintaDias) : '—'} hint={f?.execucoesComCusto ? `${brl(f.medioPorExecucao, 3)} por execução` : 'sem execução medida'} color="#22c55e" />
+              <Metric icon={MessageSquareText} label="Contatos atendidos" value={m ? String(m.atendidos) : '—'} hint={m ? `${m.clientes} cliente(s) · ${m.naoClientes} não cliente(s)` : undefined} color="#06b6d4" />
+              <Metric icon={Headset} label="Passados para a equipe" value={m ? String(m.passagens) : '—'} hint={m ? `${pct(m.passagens, m.atendidos)} dos atendidos, com a triagem feita` : undefined} color="#a78bfa" />
+              <Metric icon={CheckCheck} label="Resolvidos sem a equipe" value={m ? String(m.resolvidos) : '—'} hint={m ? `${pct(m.resolvidos, m.atendidos)} dos atendidos` : undefined} color="#3b82f6" featured={(m?.resolvidos || 0) > 0} />
+              <Metric icon={Wallet} label="Custo do modelo" value={f?.execucoesComCusto ? brl(custo) : '—'} hint={f?.execucoesComCusto ? `${brl(f.medioPorExecucao, 3)} por execução` : 'sem execução medida'} color="#22c55e" />
             </div>
           </section>
 
@@ -97,13 +101,10 @@ export default function Resultados() {
 
       {view === 'conversao' && (
         <section className="panel p-5 md:p-7">
-          <SectionTitle eyebrow="TRIAGEM" title="Da mensagem à passagem." description="Cada barra mostra quantos contatos chegaram ao marco e a parcela dos atendidos."
-            action={<div className="segmented">{(['seteDias', 'trintaDias'] as const).map(j => <button key={j} onClick={() => setJanela(j)} className={janela === j ? 'active' : ''}>{j === 'seteDias' ? '7 dias' : '30 dias'}</button>)}</div>} />
+          <SectionTitle eyebrow="TRIAGEM" title="Da mensagem à passagem." description="Quantos contatos chegaram a cada marco e a parcela dos atendidos." />
           {data ? <Conversao m={data.marcos[janela]} motivos={data.motivos[janela]} /> : <div className="h-48 animate-pulse surface-alt rounded-lg" />}
         </section>
       )}
-
-      {view === 'radar' && <MoneyRadar live={live} />}
     </div>
   )
 }
