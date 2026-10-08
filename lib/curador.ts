@@ -28,9 +28,14 @@ export interface Mudanca {
 }
 
 export interface Correcao {
-  sessao: string
-  mensagemId: string
-  /** o que o cliente (no teste) escreveu antes da resposta */
+  /** teste: laboratório (sessao + mensagemId) · real: conversa do WhatsApp (contato + ts da execução) */
+  fonte?: 'teste' | 'real'
+  sessao?: string
+  mensagemId?: string
+  contato?: string
+  nome?: string
+  ts?: string
+  /** a conversa até a resposta marcada (já com PII mascarada nas conversas reais) */
   lead: string
   /** a resposta que a equipe marcou como errada */
   resposta: string
@@ -43,7 +48,7 @@ export interface MsgConversa {
   ts: string
   papel: 'equipe' | 'ia'
   texto: string
-  origem?: 'base' | 'teste'
+  origem?: 'base' | 'teste' | 'real'
   correcao?: Correcao
   analise?: { comoDeveria: string; porque: string }
   destino?: Destino
@@ -83,7 +88,8 @@ REGRAS DOS TEXTOS (o sistema recusa o que quebrar estas regras)
 - Textos do portal e do app vão para o cliente exatamente como estão: siga o estilo deles (emojis no começo da linha, setas ➝).
 - Escreva como a equipe da InovPay: simpático e direto, frases curtas.
 
-CORREÇÃO VINDA DO LABORATÓRIO
+CORREÇÃO DE UMA RESPOSTA (do laboratório de teste ou de uma conversa real no WhatsApp)
+Conversas reais vêm com CPF, CNPJ, telefone e e-mail mascarados ([cpf], [telefone]...): nunca copie esses dados para a base.
 Quando a mensagem trouxer uma correção, preencha SEMPRE (mesmo com destino "nenhum", "control_gestao" ou "recusado"):
 - "como_deveria": a mensagem que a assistente deveria ter mandado, pronta para o WhatsApp (siga as regras acima).
 - "por_que": por que a resposta estava errada, em 1 ou 2 frases, apontando a causa: texto da base desatualizado, informação que faltava ou regra de atendimento.
@@ -92,7 +98,7 @@ E decida o destino da correção como em qualquer pedido.
 COMO RESPONDER À EQUIPE
 - Fale no passado do que você FEZ NA BASE, nomeando o texto ou a informação ("Troquei 14h por 13h no texto do split.", "Acrescentei a informação \"Formas de pagamento\"."). Você não muda a conversa nem a triagem: só textos e informações da base. Não fale de publicar, de exame nem de rascunho: o sistema acrescenta esse aviso. Não diga que a assistente "já passa a" fazer algo.
 - Em "control_gestao" e "recusado" você não mudou nada: diga isso com clareza.
-- Se a conversa de teste usou os textos NO AR e o que faltou já está no RASCUNHO (informação acrescentada ou texto já trocado), não crie de novo: destino "nenhum", explique que já está no rascunho e falta publicar.
+- Se a conversa (de teste ou real) usou os textos NO AR e o que faltou já está no RASCUNHO (informação acrescentada ou texto já trocado), não crie de novo: destino "nenhum", explique que já está no rascunho e falta publicar.
 
 FORMATO (só JSON)
 {"resposta":"o que você entendeu e o que fez, 1 a 3 frases, falando com a equipe","destino":"base|nova_informacao|control_gestao|recusado|pergunta|nenhum","como_deveria":"","por_que":"","mudancas":[]}`
@@ -171,7 +177,7 @@ export async function pedir(texto: string, correcao?: Correcao): Promise<{ equip
   if (usados > MAX_DIA) return { erro: `Limite de ${MAX_DIA} pedidos por dia atingido (protege o custo). Volta amanhã.` }
 
   const historico = await lerConversa(12)
-  const equipe: MsgConversa = { id: novoId('m'), ts: new Date().toISOString(), papel: 'equipe', texto: pedido, origem: correcao ? 'teste' : 'base', correcao }
+  const equipe: MsgConversa = { id: novoId('m'), ts: new Date().toISOString(), papel: 'equipe', texto: pedido, origem: correcao ? (correcao.fonte === 'real' ? 'real' : 'teste') : 'base', correcao }
   await guardar(equipe)
 
   const c = await candidata()
@@ -179,7 +185,7 @@ export async function pedir(texto: string, correcao?: Correcao): Promise<{ equip
   const modelo = process.env.EDITOR_MODEL || CONFIG.llmModel
   const usage = emptyUsage()
   const pedidoTexto = correcao
-    ? `CORREÇÃO VINDA DO LABORATÓRIO\nConversa de teste até a resposta marcada:\n${correcao.lead}\n\nRESPOSTA QUE A EQUIPE MARCOU COMO ERRADA:\n${correcao.resposta}\n\nCOMO A EQUIPE DIZ QUE DEVERIA SER: ${correcao.comoDeveria || '(não disse)'}\nPOR QUE A EQUIPE ACHA QUE ESTÁ ERRADO: ${correcao.porque || '(não disse)'}${pedido ? `\nOBSERVAÇÃO: ${pedido}` : ''}`
+    ? `${correcao.fonte === 'real' ? `CORREÇÃO DE UMA CONVERSA REAL NO WHATSAPP (contato ${correcao.nome || 'sem nome'})\nConversa real até a resposta marcada` : 'CORREÇÃO VINDA DO LABORATÓRIO\nConversa de teste até a resposta marcada'}:\n${correcao.lead}\n\nRESPOSTA QUE A EQUIPE MARCOU COMO ERRADA:\n${correcao.resposta}\n\nCOMO A EQUIPE DIZ QUE DEVERIA SER: ${correcao.comoDeveria || '(não disse)'}\nPOR QUE A EQUIPE ACHA QUE ESTÁ ERRADO: ${correcao.porque || '(não disse)'}${pedido ? `\nOBSERVAÇÃO: ${pedido}` : ''}`
     : `PEDIDO DA EQUIPE: ${pedido}`
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: 'system', content: SISTEMA },

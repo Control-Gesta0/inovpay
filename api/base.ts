@@ -2,7 +2,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { candidata, descartarRascunho, lerHistorico, lerRascunho, lerVigente, padrao, voltarPara } from '../lib/base'
 import { GRUPOS, ITENS, ehExtraId, ehItem, validarExtra, validarTexto } from '../lib/base-core'
 import { centralAutorizada, corpo } from '../lib/central-auth'
+import { contextoReal, listarConversas, turnosDoContato } from '../lib/conversas-reais'
 import { contarPedidosControl, desfazer, lerConversa, pedir, type Correcao } from '../lib/curador'
+import { readExecs } from '../lib/execlog'
 import { iniciarExame, lerExame } from '../lib/exame'
 import { lerSessao } from '../lib/teste'
 
@@ -12,7 +14,10 @@ import { lerSessao } from '../lib/teste'
  *   GET                                   → textos (padrão, no ar, rascunho), conversa, versões, último exame
  *   GET  ?exame=<id>                      → andamento de um exame
  *   POST {acao:'pedir', texto}            → a IA lê o pedido e muda o rascunho (ou explica por que não)
+ *   GET  ?conversas=1                     → conversas reais do WhatsApp (do diário, com PII mascarada)
+ *   GET  ?conversa=<contactId>            → os turnos de uma conversa real
  *   POST {acao:'corrigir', sessao, mensagem, comoDeveria, porque} → correção de uma resposta do laboratório
+ *   POST {acao:'corrigir_real', contato, ts, comoDeveria, porque}  → correção de uma resposta real
  *   POST {acao:'desfazer', mensagem}      → desfaz o que a IA mudou naquela resposta
  *   POST {acao:'descartar', id?}          → tira do rascunho (sem id: tudo)
  *   POST {acao:'publicar', nota}          → roda o exame com o rascunho; só publica se passar
@@ -24,6 +29,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (req.method === 'GET') {
       if (req.query.exame) return res.status(200).json({ exame: await lerExame(String(req.query.exame)) })
+      if (req.query.conversas) return res.status(200).json({ conversas: listarConversas(await readExecs(2000)) })
+      if (req.query.conversa) {
+        const contato = String(req.query.conversa)
+        return res.status(200).json({ contato, turnos: turnosDoContato(await readExecs(2000), contato) })
+      }
       return res.status(200).json(await estado())
     }
     if (req.method !== 'POST') return res.status(405).json({ error: 'use GET ou POST' })
@@ -38,6 +48,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const c = await montarCorrecao(String(b.sessao || ''), String(b.mensagem || ''), String(b.comoDeveria || ''), String(b.porque || ''))
       if ('erro' in c) return res.status(400).json({ erro: c.erro })
       const r = await pedir('', c)
+      if (r.erro) return res.status(409).json({ erro: r.erro })
+      return res.status(200).json({ ok: true, resposta: r.ia, ...(await estado()) })
+    }
+    if (acao === 'corrigir_real') {
+      const comoDeveria = String(b.comoDeveria || '').trim().slice(0, 1500)
+      const porque = String(b.porque || '').trim().slice(0, 1500)
+      if (!comoDeveria && !porque) return res.status(400).json({ erro: 'Diga como deveria ser ou por que está errado.' })
+      const contato = String(b.contato || '')
+      const execs = await readExecs(2000)
+      const ctx = contextoReal(turnosDoContato(execs, contato), String(b.ts || ''))
+      if (!ctx) return res.status(400).json({ erro: 'Essa resposta não está mais no diário (ele guarda as 2.000 execuções mais novas).' })
+      const nome = execs.find(e => e.leadId === contato && e.nome)?.nome || 'Contato'
+      const r = await pedir('', { fonte: 'real', contato, nome, ts: String(b.ts), lead: `(conversa real no WhatsApp, textos no ar)\n${ctx.lead}`, resposta: ctx.resposta, comoDeveria, porque })
       if (r.erro) return res.status(409).json({ erro: r.erro })
       return res.status(200).json({ ok: true, resposta: r.ia, ...(await estado()) })
     }
@@ -61,7 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!v) return res.status(404).json({ error: 'versão não encontrada no histórico' })
       return res.status(200).json({ ok: true, ...(await estado()) })
     }
-    return res.status(400).json({ error: 'acao inválida (pedir | corrigir | desfazer | descartar | publicar | voltar)' })
+    return res.status(400).json({ error: 'acao inválida (pedir | corrigir | corrigir_real | desfazer | descartar | publicar | voltar)' })
   } catch (e) {
     return res.status(500).json({ error: (e instanceof Error ? e.message : String(e)).slice(0, 300) })
   }
@@ -83,7 +106,7 @@ async function montarCorrecao(sessao: string, mensagemId: string, comoDeveria: s
     d ? `(nessa resposta a assistente usou: ${d.tools.join(', ') || 'nenhuma ferramenta'}${d.guard.length ? `; travas: ${d.guard.join(' | ')}` : ''})` : '',
   ].filter(Boolean).join('\n')
   return {
-    sessao, mensagemId, lead: contexto.slice(0, 6000), resposta: s.history[i].text.slice(0, 3000),
+    fonte: 'teste', sessao, mensagemId, lead: contexto.slice(0, 6000), resposta: s.history[i].text.slice(0, 3000),
     comoDeveria: comoDeveria.trim().slice(0, 1500), porque: porque.trim().slice(0, 1500),
   }
 }

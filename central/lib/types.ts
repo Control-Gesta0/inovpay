@@ -147,8 +147,8 @@ export interface MsgConversa {
   ts: string
   papel: 'equipe' | 'ia'
   texto: string
-  origem?: 'base' | 'teste'
-  correcao?: { sessao: string; mensagemId: string; lead: string; resposta: string; comoDeveria: string; porque: string }
+  origem?: 'base' | 'teste' | 'real'
+  correcao?: { fonte?: 'teste' | 'real'; sessao?: string; mensagemId?: string; contato?: string; nome?: string; ts?: string; lead: string; resposta: string; comoDeveria: string; porque: string }
   analise?: { comoDeveria: string; porque: string }
   destino?: 'base' | 'nova_informacao' | 'control_gestao' | 'recusado' | 'pergunta' | 'nenhum'
   mudancas?: MudancaBase[]
@@ -186,3 +186,9 @@ export interface TesteSessao {
 }
 
 export interface TesteUso { mensagens: number; custoUsd: number; limite: number; usdBrl: number }
+
+// ---------- Conversas reais para correção (espelho de ../lib/conversas-reais.ts) ----------
+
+export interface ConversaResumo { contato: string; nome: string; ultima: string; respostas: number; previa: string; passou?: string; perfil?: 'cliente' | 'nao_cliente' }
+
+export interface TurnoReal { ts: string; tipo: 'resposta' | 'aviso' | 'passou'; cliente: string; resposta: string; tools: string[]; travas: string[]; motivo?: string }

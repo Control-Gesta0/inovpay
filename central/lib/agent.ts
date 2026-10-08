@@ -1,7 +1,7 @@
 import 'server-only'
 import { demo } from './demo'
 
-export type Recurso = 'execucoes' | 'live' | 'recuperacao' | 'base' | 'teste'
+export type Recurso = 'execucoes' | 'live' | 'recuperacao' | 'base' | 'teste' | 'reais'
 
 /**
  * Lê o agente no servidor (o segredo nunca vai ao navegador).
@@ -55,6 +55,11 @@ function demoChamada(rota: string, metodo: string): unknown {
   if (metodo === 'POST') return { error: 'Modo demonstração: salvar, publicar e conversar precisam do agente de verdade.' }
   // o recurso sai do caminho (/api/base, /api/teste): acesso dinâmico ao JSON de demonstração
   const recurso = rota.split('?')[0].split('/').pop() as Recurso
+  // conversas reais de demonstração (montadas do diário fictício)
+  const reais = demo('reais') as { conversas: unknown[]; turnos: Record<string, unknown[]> } | undefined
+  if (reais && /[?&]conversas=1/.test(rota)) return { conversas: reais.conversas, demo: true }
+  const um = rota.match(/[?&]conversa=([^&]+)/)
+  if (reais && um) return { contato: decodeURIComponent(um[1]), turnos: reais.turnos[decodeURIComponent(um[1])] || [], demo: true }
   const dado = recurso === 'base' || recurso === 'teste' ? demo(recurso) : null
   return dado ? { ...(dado as object), demo: true } : { error: 'rota sem demonstração' }
 }

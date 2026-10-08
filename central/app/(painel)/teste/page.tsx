@@ -2,9 +2,8 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { ArrowRight, Bot, ChevronDown, FlaskConical, Loader2, PenLine, RotateCcw, Send, ShieldCheck, Tags, UserRound, X } from 'lucide-react'
-import MudancasBase from '@/components/MudancasBase'
+import { ArrowRight, Bot, ChevronDown, FlaskConical, MessagesSquare, PenLine, RotateCcw, Send, ShieldCheck, Tags, UserRound } from 'lucide-react'
+import CorrigirPainel from '@/components/CorrigirPainel'
 import { PageIntro, SectionTitle } from '@/components/ProductUI'
 import { brl, MOTIVO_ROTULO } from '@/lib/format'
 import type { MsgConversa, TesteOpcoes, TesteSessao, TesteUso } from '@/lib/types'
@@ -229,6 +228,14 @@ export default function Teste() {
               )}
             </div>
           </section>
+          <Link href="/base?ver=reais" className="panel interactive-card p-4 flex items-start gap-3">
+            <MessagesSquare size={15} className="text-cyan shrink-0 mt-0.5" />
+            <span className="min-w-0">
+              <span className="block text-[12.5px] font-medium text-ink">Corrigir uma conversa real</span>
+              <span className="block text-[11px] text-body-muted mt-0.5 leading-relaxed">Viu algo errado no WhatsApp? Abra a conversa e corrija a resposta do mesmo jeito.</span>
+            </span>
+            <ArrowRight size={13} className="text-cyan shrink-0 mt-1 ml-auto" />
+          </Link>
           <p className="text-[10.5px] text-body-faint leading-relaxed px-1">
             {sessao ? `Esta conversa: ${sessao.turnos} mensagem(ns), ${brl(sessao.custoUsd * usdBrl, 3)} de modelo. ` : ''}
             {uso ? `Laboratório hoje: ${uso.mensagens} de ${uso.limite} mensagens, ${brl(uso.custoUsd * usdBrl, 2)}.` : ''} Fotos e áudios não entram no teste. Escreva &quot;reset&quot; para recomeçar.
@@ -236,149 +243,20 @@ export default function Teste() {
         </aside>
       </div>
 
-      {corrigindo && id && sessao && (
-        <Corrigir sessao={sessao} mensagemId={corrigindo} resultado={correcoes[corrigindo]}
-          onResultado={r => setCorrecoes(c => ({ ...c, [corrigindo]: r }))}
-          onFechar={() => setCorrigindo(null)}
-          onTestarRascunho={() => { setCorrigindo(null); recomecar(id, { ...opcoes, versao: 'rascunho' }) }} />
-      )}
+      {corrigindo && id && sessao && (() => {
+        const i = sessao.history.findIndex(m => m.id === corrigindo)
+        if (i < 0) return null
+        const ultimaOut = sessao.history.slice(0, i).map(m => m.dir).lastIndexOf('out')
+        const cliente = sessao.history.slice(ultimaOut + 1, i).filter(m => m.dir === 'in').map(m => m.text).join('\n')
+        return (
+          <CorrigirPainel origem="teste" cliente={cliente} resposta={sessao.history[i].text}
+            pedido={{ acao: 'corrigir', sessao: sessao.id, mensagem: corrigindo }} resultado={correcoes[corrigindo]}
+            onResultado={r => setCorrecoes(c => ({ ...c, [corrigindo]: r }))}
+            onFechar={() => setCorrigindo(null)}
+            onTestarRascunho={() => { setCorrigindo(null); recomecar(id, { ...opcoes, versao: 'rascunho' }) }} />
+        )
+      })()}
     </div>
-  )
-}
-
-const DESTINO: Record<string, { rotulo: string; cor: string }> = {
-  base: { rotulo: 'TEXTO DA BASE ALTERADO NO RASCUNHO', cor: '#06b6d4' },
-  nova_informacao: { rotulo: 'INFORMAÇÃO NOVA NO RASCUNHO', cor: '#06b6d4' },
-  control_gestao: { rotulo: 'PEDIDO PARA A CONTROL GESTÃO', cor: '#a78bfa' },
-  recusado: { rotulo: 'NÃO ENTRA NA BASE', cor: '#f59e0b' },
-  pergunta: { rotulo: 'PRECISA DE MAIS DETALHE', cor: '#737373' },
-  nenhum: { rotulo: 'NADA MUDOU NA BASE', cor: '#737373' },
-}
-
-/** Painel de correção: a resposta fica travada; a equipe diz como deveria ser e por quê; a IA analisa e ajusta a base. */
-function Corrigir({ sessao, mensagemId, resultado, onResultado, onFechar, onTestarRascunho }: {
-  sessao: TesteSessao; mensagemId: string; resultado?: MsgConversa
-  onResultado: (r: MsgConversa) => void; onFechar: () => void; onTestarRascunho: () => void
-}) {
-  const [comoDeveria, setComoDeveria] = useState('')
-  const [porque, setPorque] = useState('')
-  const [enviando, setEnviando] = useState(false)
-  const [erro, setErro] = useState<string | null>(null)
-  const [desfeita, setDesfeita] = useState(false)
-  const i = sessao.history.findIndex(m => m.id === mensagemId)
-  const resposta = sessao.history[i]
-  const ultimaOut = sessao.history.slice(0, i).map(m => m.dir).lastIndexOf('out')
-  const cliente = sessao.history.slice(ultimaOut + 1, i).filter(m => m.dir === 'in').map(m => m.text).join('\n')
-
-  useEffect(() => {
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar() }
-    window.addEventListener('keydown', esc)
-    return () => window.removeEventListener('keydown', esc)
-  }, [onFechar])
-
-  const enviar = async () => {
-    setEnviando(true); setErro(null)
-    try {
-      const r = await fetch('/api/base', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ acao: 'corrigir', sessao: sessao.id, mensagem: mensagemId, comoDeveria, porque }) })
-      const d = await r.json()
-      if (!r.ok || !d.resposta) setErro(d.erro || d.error || 'A IA não respondeu. Tente de novo.')
-      else onResultado(d.resposta)
-    } catch (e) { setErro(`Não consegui falar com o agente: ${e instanceof Error ? e.message : String(e)}`) }
-    setEnviando(false)
-  }
-  const desfazer = async () => {
-    if (!resultado) return
-    const r = await fetch('/api/base', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ acao: 'desfazer', mensagem: resultado.id }) })
-    const d = await r.json()
-    if (r.ok) setDesfeita(true); else setErro(d.erro || d.error || 'Não deu para desfazer.')
-  }
-
-  if (!resposta) return null
-  // portal no body: o painel cobre a tela inteira (dentro do <main> ele herdava o deslocamento do layout)
-  return createPortal(
-    <div className="fixed inset-0 z-[90] flex justify-end bg-black/50 backdrop-blur-[2px]" onMouseDown={e => { if (e.currentTarget === e.target) onFechar() }}>
-      <aside className="h-full w-full max-w-[560px] command-panel overflow-y-auto scroll-thin" style={{ borderRadius: 0 }} role="dialog" aria-modal="true" aria-label="Corrigir resposta">
-        <div className="sticky top-0 z-10 px-5 py-4 border-b border-line-soft flex items-center gap-3" style={{ background: 'var(--surface)' }}>
-          <span className="w-8 h-8 rounded-lg border border-cyan/25 bg-cyan/[0.08] text-cyan flex items-center justify-center"><PenLine size={15} /></span>
-          <div className="min-w-0 flex-1">
-            <div className="text-[14px] font-medium text-ink">Corrigir esta resposta</div>
-            <div className="text-[10.5px] text-body-muted">A IA analisa e ajusta a Base de dados no rascunho. Nada muda no WhatsApp antes de publicar.</div>
-          </div>
-          <button type="button" onClick={onFechar} className="p-2 rounded-lg text-body-muted hover:text-ink" aria-label="Fechar"><X size={15} /></button>
-        </div>
-
-        <div className="p-5 space-y-5">
-          {cliente && (
-            <div>
-              <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-body-muted">O cliente escreveu</div>
-              <div className="mt-1.5 rounded-[10px] bg-cyan/[0.10] border border-cyan/25 px-3.5 py-2.5 text-[12.5px] text-ink whitespace-pre-wrap break-words">{cliente}</div>
-            </div>
-          )}
-          <div>
-            <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-body-muted">A assistente respondeu</div>
-            <div className="mt-1.5 rounded-[10px] surface-alt border border-line-soft px-3.5 py-2.5 text-[12.5px] text-ink whitespace-pre-wrap break-words">{resposta.text}</div>
-          </div>
-
-          {!resultado ? (
-            <div className="space-y-4">
-              <label className="block">
-                <span className="text-[12.5px] font-medium text-ink">Como deveria ser</span>
-                <textarea value={comoDeveria} onChange={e => setComoDeveria(e.target.value)} rows={3} placeholder="Ex.: deveria dizer que sim, aceita Pix por QR Code e aproximação"
-                  className="campo mt-1.5 w-full rounded-[8px] px-3.5 py-2.5 text-[13px] resize-y" />
-              </label>
-              <label className="block">
-                <span className="text-[12.5px] font-medium text-ink">Por que está errado</span>
-                <textarea value={porque} onChange={e => setPorque(e.target.value)} rows={3} placeholder="Ex.: ela não respondeu o que o cliente perguntou"
-                  className="campo mt-1.5 w-full rounded-[8px] px-3.5 py-2.5 text-[13px] resize-y" />
-              </label>
-              {erro && <p className="text-[12px] text-warning">{erro}</p>}
-              <button type="button" onClick={enviar} disabled={enviando || (!comoDeveria.trim() && !porque.trim())}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-[8px] border border-cyan/30 bg-cyan/[0.12] text-cyan py-3 text-[13px] font-medium disabled:opacity-40">
-                {enviando ? <><Loader2 size={14} className="animate-spin" /> A IA está analisando… (uns 10 segundos)</> : <>Pedir para a IA corrigir <ArrowRight size={14} /></>}
-              </button>
-              <p className="text-[10.5px] text-body-faint leading-relaxed">Basta preencher um dos dois. Texto ou informação errada, a IA muda na base. Regra de atendimento (ordem das perguntas, quando passar para a equipe) vira pedido para a Control Gestão.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="rounded-[10px] surface-alt border border-line-soft px-3.5 py-3">
-                {resultado.destino && <div className="font-mono text-[8.5px] tracking-[0.1em] mb-1.5" style={{ color: DESTINO[resultado.destino]?.cor }}>{DESTINO[resultado.destino]?.rotulo}</div>}
-                <p className="text-[12.5px] text-ink whitespace-pre-wrap break-words">{resultado.texto}</p>
-              </div>
-              {resultado.analise?.comoDeveria && (
-                <div className="rounded-[10px] border border-success/30 bg-success/[0.05] px-3.5 py-3">
-                  <div className="font-mono text-[9px] tracking-[0.12em] text-success">COMO DEVERIA SER</div>
-                  <p className="text-[12.5px] text-ink whitespace-pre-wrap break-words mt-1.5">{resultado.analise.comoDeveria}</p>
-                </div>
-              )}
-              {resultado.analise?.porque && (
-                <div className="rounded-[10px] border border-warning/30 bg-warning/[0.05] px-3.5 py-3">
-                  <div className="font-mono text-[9px] tracking-[0.12em] text-warning">POR QUE ESTAVA ERRADO</div>
-                  <p className="text-[12.5px] text-ink whitespace-pre-wrap break-words mt-1.5">{resultado.analise.porque}</p>
-                </div>
-              )}
-              {resultado.mudancas && resultado.mudancas.length > 0 && (
-                <div>
-                  <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-body-muted mb-2">O que mudou na base (rascunho)</div>
-                  <MudancasBase mudancas={resultado.mudancas} desfeita={desfeita || resultado.desfeita} onDesfazer={desfazer} />
-                </div>
-              )}
-              {erro && <p className="text-[12px] text-warning">{erro}</p>}
-              <div className="flex flex-wrap gap-2 pt-1">
-                {resultado.mudancas && resultado.mudancas.length > 0 && !desfeita && (
-                  <button type="button" onClick={onTestarRascunho} className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-[8px] border border-cyan/30 bg-cyan/[0.12] text-cyan text-[12.5px] font-medium">
-                    <FlaskConical size={13} /> Testar de novo com o rascunho
-                  </button>
-                )}
-                <Link href="/base" className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-[8px] border border-line-soft text-[12.5px] text-body-mid hover:text-ink">
-                  Abrir a Base de dados <ArrowRight size={13} />
-                </Link>
-              </div>
-            </div>
-          )}
-        </div>
-      </aside>
-    </div>,
-    document.body,
   )
 }
 

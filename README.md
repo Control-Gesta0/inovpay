@@ -44,7 +44,7 @@ Lead manda mensagem no WhatsApp
 | `GET /api/validate?secret=…` | prova o mapa contra o GHL vivo. Tem que dar `ok: true` antes de ligar |
 | `GET /api/executions?secret=…&limit=50` | diário: respostas, passagens, erros, custo |
 | `GET /api/central?recurso=execucoes\|live\|recuperacao` | dados da Central (header `x-central-secret: <CENTRAL_SECRET>`). Só leitura, zero tokens |
-| `GET/POST /api/base` | Base de dados da Central: pedir mudança à IA (curador), corrigir resposta do laboratório, desfazer, publicar com exame (14 cenários), voltar versão. Não existe edição manual |
+| `GET/POST /api/base` | Base de dados da Central: pedir mudança à IA (curador), conversas reais (`?conversas=1`, `?conversa=<id>`), corrigir resposta do laboratório ou real, desfazer, publicar com exame (14 cenários), voltar versão. Não existe edição manual |
 | `GET/POST /api/teste` | laboratório da Central: conversa com a assistente numa porta em memória (nada vai para o GHL) |
 | `GET /painel` | redireciona para a Central |
 
@@ -60,8 +60,9 @@ Lead manda mensagem no WhatsApp
   no ar ou o rascunho da base. Limite de 300 mensagens por dia.
 - **Base de dados**: os textos que a assistente manda e consulta (portal e app, cancelamento na maquininha,
   explicação para não cliente, encerramentos, aviso de fora do horário) e as informações que a equipe pede para
-  acrescentar. **Ninguém edita texto à mão**: a equipe pede em português (aba "Pedir mudança", com histórico) ou
-  corrige uma resposta no Teste (botão "Corrigir": como deveria ser e por que está errado). A IA (`lib/curador.ts`,
+  acrescentar. **Ninguém edita texto à mão**: a equipe pede em português (aba "Pedir mudança", com histórico),
+  corrige uma resposta no Teste ou uma resposta de **conversa real** do WhatsApp (aba "Conversas reais", montada do
+  diário com PII mascarada) pelo botão "Corrigir": como deveria ser e por que está errado. A IA (`lib/curador.ts`,
   com a chave OpenAI do cliente) decide o destino: muda o texto por troca exata de trecho, acrescenta informação
   (seção 11 do prompt), registra pedido para a Control Gestão (regra de atendimento) ou recusa (taxa, preço,
   senha). Tudo vai para o rascunho; publicar roda o exame (14 cenários; cenário que falha roda mais 2 vezes e

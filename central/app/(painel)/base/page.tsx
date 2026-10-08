@@ -2,19 +2,21 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, BookOpenText, Bot, CheckCircle2, FlaskConical, History, ListChecks, Loader2, MessagesSquare, Pencil, Send, ShieldCheck, Undo2, Upload, UserRound, XCircle } from 'lucide-react'
+import { AlertTriangle, BookOpenText, Bot, CheckCircle2, FlaskConical, History, ListChecks, Loader2, MessageCircleWarning, MessagesSquare, PenLine, Pencil, Search, Send, ShieldCheck, Undo2, Upload, UserRound, XCircle } from 'lucide-react'
 import FocusNav, { type FocusItem } from '@/components/FocusNav'
 import { PageIntro, SectionTitle } from '@/components/ProductUI'
 import RefreshButton from '@/components/RefreshButton'
+import CorrigirPainel from '@/components/CorrigirPainel'
 import MudancasBase from '@/components/MudancasBase'
-import { brl, dataHora } from '@/lib/format'
-import type { BaseEstado, BaseItem, Exame, MsgConversa } from '@/lib/types'
+import { brl, dataHora, MOTIVO_ROTULO } from '@/lib/format'
+import type { BaseEstado, BaseItem, ConversaResumo, Exame, MsgConversa, TurnoReal } from '@/lib/types'
 import ComoConduz from './ComoConduz'
 
-type View = 'conversa' | 'textos' | 'conduz' | 'historico'
+type View = 'conversa' | 'reais' | 'textos' | 'conduz' | 'historico'
 
 const VIEWS: FocusItem<View>[] = [
   { id: 'conversa', label: 'Pedir mudança', description: 'Diga à IA o que mudar', icon: MessagesSquare },
+  { id: 'reais', label: 'Conversas reais', description: 'Corrija o que ela respondeu', icon: MessageCircleWarning },
   { id: 'textos', label: 'Textos', description: 'O que ela manda e consulta', icon: BookOpenText },
   { id: 'conduz', label: 'Como ela conduz', description: 'Roteiro e travas (leitura)', icon: ListChecks },
   { id: 'historico', label: 'Versões', description: 'O que foi publicado', icon: History },
@@ -55,6 +57,11 @@ export default function Base() {
       setDados(d); setErro(null)
       if (d.exame) setExame(d.exame)
     } catch (e) { setErro(String(e)) }
+  }, [])
+
+  useEffect(() => {
+    const pedida = new URLSearchParams(window.location.search).get('ver')
+    if (pedida && VIEWS.some(v => v.id === pedida)) setView(pedida as View)
   }, [])
 
   useEffect(() => {
@@ -161,6 +168,8 @@ export default function Base() {
       <FocusNav items={VIEWS} value={view} onChange={setView} label="Áreas da base de dados" />
 
       {view === 'conversa' && <Conversa dados={dados} post={post} bloqueado={publicando || !!dados?.demo} />}
+
+      {view === 'reais' && <ConversasReais onMudou={carregar} bloqueado={publicando || !!dados?.demo} />}
 
       {view === 'textos' && (
         <div className="space-y-8">
@@ -298,7 +307,7 @@ function Conversa({ dados, post, bloqueado }: { dados: (BaseEstado & { demo?: bo
 
   return (
     <section className="space-y-4">
-      <SectionTitle eyebrow="PEDIR MUDANÇA" title="Diga o que mudar; a IA faz." description="Escreva como falaria com alguém da equipe. A IA decide onde a mudança entra, escreve no rascunho e mostra o antes e o depois. Correções feitas no Teste também aparecem aqui." />
+      <SectionTitle eyebrow="PEDIR MUDANÇA" title="Diga o que mudar; a IA faz." description="Escreva como falaria com alguém da equipe. A IA decide onde a mudança entra, escreve no rascunho e mostra o antes e o depois. Correções feitas no Teste e nas conversas reais também aparecem aqui." />
       <div className="panel overflow-hidden flex flex-col">
         <div className="p-4 md:p-5 space-y-4 max-h-[64vh] overflow-y-auto scroll-thin">
           {!msgs.length && (
@@ -315,7 +324,7 @@ function Conversa({ dados, post, bloqueado }: { dados: (BaseEstado & { demo?: bo
               <div className="max-w-[88%] md:max-w-[75%] flex flex-col items-end">
                 {m.correcao ? (
                   <div className="rounded-[12px] rounded-br-[4px] px-3.5 py-3 bg-cyan/[0.10] border border-cyan/25 text-[12.5px] text-ink space-y-2 w-full">
-                    <div className="font-mono text-[8.5px] tracking-[0.1em] text-cyan">CORREÇÃO FEITA NO TESTE</div>
+                    <div className="font-mono text-[8.5px] tracking-[0.1em] text-cyan">{m.origem === 'real' ? `CORREÇÃO DE CONVERSA REAL${m.correcao.nome ? ` · ${m.correcao.nome.toUpperCase()}` : ''}` : 'CORREÇÃO FEITA NO TESTE'}</div>
                     <div><span className="text-body-muted text-[11px]">Resposta marcada como errada:</span><p className="whitespace-pre-wrap break-words text-body-mid mt-0.5">{m.correcao.resposta}</p></div>
                     {m.correcao.comoDeveria && <div><span className="text-body-muted text-[11px]">Como deveria ser:</span><p className="whitespace-pre-wrap break-words mt-0.5">{m.correcao.comoDeveria}</p></div>}
                     {m.correcao.porque && <div><span className="text-body-muted text-[11px]">Por que está errado:</span><p className="whitespace-pre-wrap break-words mt-0.5">{m.correcao.porque}</p></div>}
@@ -359,6 +368,122 @@ function Conversa({ dados, post, bloqueado }: { dados: (BaseEstado & { demo?: bo
           <p className="text-[10.5px] text-body-faint mt-2">Regra de atendimento (ordem das perguntas, quando passar para a equipe) vira pedido para a Control Gestão. Taxa e preço não entram na base.{dados?.pedidosControlGestao ? ` ${dados.pedidosControlGestao} pedido(s) registrados para a Control Gestão.` : ''}</p>
         </div>
       </div>
+    </section>
+  )
+}
+
+/** Conversas reais do WhatsApp (do diário, com PII mascarada): abrir, ver cada resposta e corrigir. */
+function ConversasReais({ onMudou, bloqueado }: { onMudou: () => void; bloqueado: boolean }) {
+  const [lista, setLista] = useState<(ConversaResumo[]) | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+  const [busca, setBusca] = useState('')
+  const [sel, setSel] = useState<ConversaResumo | null>(null)
+  const [turnos, setTurnos] = useState<TurnoReal[] | null>(null)
+  const [corrigindo, setCorrigindo] = useState<TurnoReal | null>(null)
+  const [correcoes, setCorrecoes] = useState<Record<string, MsgConversa>>({})
+  const conversa = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    fetch('/api/base?conversas=1', { cache: 'no-store' }).then(r => r.json())
+      .then(d => { if (d.error) setErro(d.error); else setLista(d.conversas || []) })
+      .catch(e => setErro(String(e)))
+  }, [])
+
+  const abrir = async (c: ConversaResumo) => {
+    setSel(c); setTurnos(null)
+    try {
+      const d = await (await fetch(`/api/base?conversa=${encodeURIComponent(c.contato)}`, { cache: 'no-store' })).json()
+      setTurnos(d.turnos || [])
+    } catch (e) { setErro(String(e)) }
+    setTimeout(() => conversa.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+  }
+
+  const filtradas = (lista || []).filter(c => !busca.trim() || `${c.nome} ${c.previa}`.toLowerCase().includes(busca.trim().toLowerCase()))
+  const chave = (t: TurnoReal) => `${sel?.contato}|${t.ts}`
+
+  return (
+    <section className="space-y-4">
+      <SectionTitle eyebrow="CONVERSAS REAIS" title="O que ela respondeu no WhatsApp." description="Abra uma conversa e clique em Corrigir na resposta que saiu errada. A IA analisa e ajusta a base, igual no Teste. CPF, CNPJ, telefone e e-mail aparecem mascarados." />
+      {erro && <div className="panel p-5 text-[12.5px] text-warning">Não consegui ler as conversas: {erro}</div>}
+      <div className="grid lg:grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
+        <div className="panel overflow-hidden">
+          <div className="p-3 border-b border-line-soft relative">
+            <Search size={13} className="absolute left-6 top-1/2 -translate-y-1/2 text-body-faint" />
+            <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por nome ou texto" className="campo w-full rounded-[8px] pl-9 pr-3 py-2 text-[12.5px]" />
+          </div>
+          <div className="max-h-[62vh] overflow-y-auto scroll-thin">
+            {filtradas.map(c => (
+              <button key={c.contato} type="button" onClick={() => abrir(c)}
+                className={`w-full text-left px-4 py-3 border-b border-line-soft hover-raise ${sel?.contato === c.contato ? 'bg-cyan/[0.08]' : ''}`}>
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-medium text-ink truncate flex-1">{c.nome}</span>
+                  <span className="font-mono text-[9px] text-body-faint shrink-0">{dataHora(c.ultima)}</span>
+                </div>
+                <p className="text-[11.5px] text-body-mid truncate mt-1">{c.previa}</p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  {c.perfil && <span className="font-mono text-[8.5px] text-body-faint">{c.perfil === 'cliente' ? 'CLIENTE' : 'NÃO CLIENTE'}</span>}
+                  {c.passou && <span className="font-mono text-[8.5px] text-purple-400">PASSOU · {(MOTIVO_ROTULO[c.passou] || c.passou).toUpperCase()}</span>}
+                  <span className="font-mono text-[8.5px] text-body-faint ml-auto">{c.respostas} resp.</span>
+                </div>
+              </button>
+            ))}
+            {lista && !filtradas.length && (
+              <p className="p-6 text-center text-[12px] text-body-muted">{lista.length ? 'Nada com essa busca.' : 'Ainda não há conversa real com texto guardado. Quando a assistente atender pelo WhatsApp, as conversas aparecem aqui.'}</p>
+            )}
+            {!lista && !erro && <div className="h-40 animate-pulse surface-alt" />}
+          </div>
+        </div>
+
+        <div ref={conversa} className="panel overflow-hidden scroll-mt-6">
+          {!sel ? (
+            <div className="p-8 text-center text-[12.5px] text-body-muted">Escolha uma conversa ao lado para ver as respostas e corrigir.</div>
+          ) : (
+            <>
+              <div className="px-5 py-3.5 border-b border-line-soft flex items-center gap-3 flex-wrap">
+                <UserRound size={15} className="text-cyan" />
+                <span className="text-[13.5px] font-medium text-ink">{sel.nome}</span>
+                {sel.passou && <span className="font-mono text-[8.5px] text-purple-400">PASSOU PARA A EQUIPE · {(MOTIVO_ROTULO[sel.passou] || sel.passou).toUpperCase()}</span>}
+              </div>
+              <div className="p-4 md:p-5 space-y-3 max-h-[62vh] overflow-y-auto scroll-thin">
+                {(turnos || []).map(t => (
+                  <div key={t.ts} className="space-y-2">
+                    {t.cliente && (
+                      <div className="flex justify-end">
+                        <div className="max-w-[85%] rounded-[12px] rounded-br-[4px] px-3.5 py-2.5 bg-cyan/[0.12] border border-cyan/25 text-[13px] text-ink whitespace-pre-wrap break-words">{t.cliente}</div>
+                      </div>
+                    )}
+                    <div className="flex justify-start">
+                      <div className="max-w-[88%] flex flex-col items-start">
+                        <div className="rounded-[12px] rounded-bl-[4px] px-3.5 py-2.5 surface-alt border border-line-soft text-[13px] text-ink whitespace-pre-wrap break-words">{t.resposta}</div>
+                        <div className="flex items-center gap-3 flex-wrap mt-1">
+                          <span className="font-mono text-[9px] text-body-faint">
+                            {dataHora(t.ts)}{t.tipo === 'aviso' ? ' · aviso automático de fora do horário' : ''}{t.tipo === 'passou' ? ` · passou para a equipe (${MOTIVO_ROTULO[t.motivo || ''] || t.motivo || 'outro'})` : ''}{t.travas.length ? ` · ${t.travas.length} trava(s)` : ''}
+                          </span>
+                          {!bloqueado && (
+                            <button type="button" onClick={() => setCorrigindo(t)} className={`inline-flex items-center gap-1 text-[10.5px] font-medium ${correcoes[chave(t)] ? 'text-success' : 'text-cyan'} hover:underline`}>
+                              <PenLine size={11} /> {correcoes[chave(t)] ? 'corrigida · ver' : 'Corrigir'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {!turnos && <div className="h-40 animate-pulse surface-alt rounded-lg" />}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {corrigindo && sel && (
+        <CorrigirPainel origem="real" nome={sel.nome} resposta={corrigindo.resposta}
+          cliente={(turnos || []).slice(0, (turnos || []).indexOf(corrigindo) + 1).reverse().find(x => x.cliente)?.cliente || ''}
+          onMudou={onMudou}
+          pedido={{ acao: 'corrigir_real', contato: sel.contato, ts: corrigindo.ts }} resultado={correcoes[chave(corrigindo)]}
+          onResultado={r => { setCorrecoes(c => ({ ...c, [chave(corrigindo)]: r })); onMudou() }}
+          onFechar={() => setCorrigindo(null)} />
+      )}
     </section>
   )
 }

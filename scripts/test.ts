@@ -296,6 +296,22 @@ async function main() {
   eq('taxa já respondida: não mexe', tp2.comRespostaDePreco('A equipe passa as taxas certinho. Como funciona o seu negócio?', true), 'A equipe passa as taxas certinho. Como funciona o seu negócio?')
   eq('sem pergunta de taxa: não mexe', tp2.comRespostaDePreco('Como funciona o seu negócio?', false), 'Como funciona o seu negócio?')
 
+  // ---------- Conversas reais para correção ----------
+  const cr = await import('../lib/conversas-reais')
+  const reais = [
+    { at: '2026-10-08T22:00:00Z', tipo: 'aviso' as const, leadId: 'x', nome: 'Rita', turnoLead: 'oi, minha máquina não liga', respostaIA: 'Olá! Estamos fora do horário…' },
+    { at: '2026-10-08T22:00:05Z', tipo: 'resposta' as const, leadId: 'x', nome: 'Rita', turnoLead: 'oi, minha máquina não liga', respostaIA: 'Pra eu te ajudar, me passa o CPF ou CNPJ?', perfil: 'cliente' as const },
+    { at: '2026-10-08T22:01:00Z', tipo: 'passou' as const, leadId: 'x', nome: 'Rita', turnoLead: '[cnpj]', respostaIA: 'Obrigado pelas informações!', porta: 'suporte_maquininha', tools: ['passar_para_humano'] },
+    { at: '2026-10-08T21:00:00Z', tipo: 'resposta' as const, leadId: 'y', nome: 'Beto', turnoLead: 'oi', respostaIA: 'Oi! Você já é cliente?' },
+    { at: '2026-10-08T20:00:00Z', tipo: 'pulou' as const, leadId: 'z', nome: 'Zé', detalhe: 'sem a tag' },
+    { at: '2026-10-08T19:00:00Z', tipo: 'resposta' as const, leadId: 'w', nome: 'Antigo', detalhe: 'enviado' },
+  ]
+  eq('conversas reais: só com texto guardado, mais nova primeiro', cr.listarConversas(reais).map(c => [c.nome, c.respostas, c.passou ?? null]), [['Rita', 3, 'suporte_maquininha'], ['Beto', 1, null]])
+  const tr = cr.turnosDoContato(reais, 'x')
+  eq('texto do cliente não repete no aviso + resposta', tr.map(t => [t.tipo, t.cliente]), [['aviso', 'oi, minha máquina não liga'], ['resposta', ''], ['passou', '[cnpj]']])
+  const cx = cr.contextoReal(tr, '2026-10-08T22:01:00Z')
+  eq('contexto da correção real', [cx?.resposta, cx?.lead.includes('CLIENTE: [cnpj]'), cx?.lead.includes('ASSISTENTE: Pra eu te ajudar')], ['Obrigado pelas informações!', true, true])
+
   console.log(falhas ? `\n❌ ${falhas} falha(s)` : '\n✅ tudo certo')
   process.exit(falhas ? 1 : 0)
 }

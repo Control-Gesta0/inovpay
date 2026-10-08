@@ -6,11 +6,16 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 // a equipe não edita texto: pede para a IA (pedir/corrigir) e a IA muda o rascunho
-const ACOES = ['pedir', 'corrigir', 'desfazer', 'descartar', 'publicar', 'voltar']
+const ACOES = ['pedir', 'corrigir', 'corrigir_real', 'desfazer', 'descartar', 'publicar', 'voltar']
 
 export async function GET(req: NextRequest) {
-  const exame = req.nextUrl.searchParams.get('exame')
-  const rota = exame ? `/api/base?exame=${encodeURIComponent(exame)}` : '/api/base'
+  const q = req.nextUrl.searchParams
+  const exame = q.get('exame')
+  const conversa = q.get('conversa')
+  const rota = exame ? `/api/base?exame=${encodeURIComponent(exame)}`
+    : q.get('conversas') ? '/api/base?conversas=1'
+    : conversa ? `/api/base?conversa=${encodeURIComponent(conversa)}`
+    : '/api/base'
   const { status, body } = await chamarAgente(rota)
   return NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } })
 }
