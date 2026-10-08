@@ -13,7 +13,7 @@ import { lerSessao } from '../lib/teste'
  * pede em português e a IA (curador, token do cliente) muda o rascunho.
  *   GET                                   → textos (padrão, no ar, rascunho), conversa, versões, último exame
  *   GET  ?exame=<id>                      → andamento de um exame
- *   POST {acao:'pedir', texto}            → a IA lê o pedido e muda o rascunho (ou explica por que não)
+ *   POST {acao:'pedir', texto, anexos?}   → a IA lê o pedido (e até 3 arquivos {nome,tipo,base64} ou links no texto) e muda o rascunho
  *   GET  ?conversas=1                     → conversas reais do WhatsApp (do diário, com PII mascarada)
  *   GET  ?conversa=<contactId>            → os turnos de uma conversa real
  *   POST {acao:'corrigir', sessao, mensagem, comoDeveria, porque} → correção de uma resposta do laboratório
@@ -40,7 +40,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const b = corpo(req)
     const acao = String(b.acao || '')
     if (acao === 'pedir') {
-      const r = await pedir(String(b.texto || ''))
+      const anexos = Array.isArray(b.anexos) ? b.anexos : []
+      if (anexos.length > 3) return res.status(400).json({ erro: 'Mande no máximo 3 arquivos por vez.' })
+      const r = await pedir(String(b.texto || ''), undefined, anexos.map((a: Record<string, unknown>) => ({ nome: String(a?.nome || 'arquivo'), tipo: String(a?.tipo || ''), base64: String(a?.base64 || '') })))
       if (r.erro) return res.status(409).json({ erro: r.erro })
       return res.status(200).json({ ok: true, resposta: r.ia, ...(await estado()) })
     }

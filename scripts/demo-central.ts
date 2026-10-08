@@ -109,8 +109,9 @@ const base = {
   itens: [
     ...ITENS.map(i => ({ id: i.id, grupo: i.grupo as string, titulo: i.titulo, ajuda: i.ajuda, padrao: padrao[i.id], noAr: padrao[i.id], rascunho: rascunho[i.id] ?? null, problemas: rascunho[i.id] ? validarTexto(i.id, rascunho[i.id]) : [] })),
     { id: 'extra_demo0001', grupo: 'extras', titulo: 'Formas de pagamento na maquininha', ajuda: 'Informação nova: entra quando o rascunho for publicado.', padrao: '', noAr: '', rascunho: 'A maquininha aceita pagamento por aproximação e Pix por QR Code.', problemas: [] },
+    { id: 'extra_demo0002', grupo: 'extras', titulo: 'Troca de bobina da maquininha', ajuda: 'Informação nova: entra quando o rascunho for publicado.', padrao: '', noAr: '', rascunho: 'Abra a tampa superior puxando a trava para cima. Coloque o rolo com o papel saindo por baixo e feche a tampa. Use bobina térmica 57 mm x 40 m.', problemas: [] },
   ],
-  alteracoes: ['extra_demo0001'],
+  alteracoes: ['extra_demo0001', 'extra_demo0002'],
   historico: [
     { versao: 1, publicadoEm: new Date(NOW - 6 * 86400_000).toISOString(), nota: 'Encerramento do comercial mais curto', mudancas: ['enc_comercial'] },
     { versao: 0, publicadoEm: null, nota: null, mudancas: [] },
@@ -129,6 +130,11 @@ const base = {
     { id: 'c5', ts: new Date(NOW - 3600_000).toISOString(), papel: 'equipe', origem: 'base', texto: 'Quero que ela pergunte o nome do cliente antes de tudo.' },
     { id: 'c6', ts: new Date(NOW - 3600_000 + 6000).toISOString(), papel: 'ia', origem: 'base', destino: 'control_gestao', custoUsd: 0.0008,
       texto: 'Isso é regra de atendimento (muda a ordem da triagem), então não mexi na base. Nada mudou na base: ficou registrado como pedido para a Control Gestão.' },
+    { id: 'c7', ts: new Date(NOW - 1800_000).toISOString(), papel: 'equipe', origem: 'base', texto: 'Ensina o que serve deste manual',
+      anexos: [{ nome: 'procedimentos.pdf', origem: 'arquivo', tipo: 'pdf', caracteres: 386 }, { nome: 'tabela.xlsx', origem: 'arquivo', tipo: 'xlsx', caracteres: 0, erro: 'formato não aceito (planilha Excel: salve como CSV)' }] },
+    { id: 'c8', ts: new Date(NOW - 1800_000 + 7000).toISOString(), papel: 'ia', origem: 'base', destino: 'nova_informacao', custoUsd: 0.0026,
+      texto: 'Acrescentei a troca de bobina como informação nova. A parte de tabela comercial do PDF eu não usei: taxa fica com a equipe. Não consegui ler: "tabela.xlsx": formato não aceito (planilha Excel: salve como CSV). Está no rascunho: teste e publique com o exame para valer no WhatsApp.',
+      mudancas: [{ tipo: 'nova', id: 'extra_demo0002', titulo: 'Troca de bobina da maquininha', antes: '', depois: 'Abra a tampa superior puxando a trava para cima. Coloque o rolo com o papel saindo por baixo e feche a tampa. Use bobina térmica 57 mm x 40 m.' }] },
   ],
   pedidosControlGestao: 1,
   exame: { id: 'exdemo', status: 'aprovado', inicio: new Date(NOW - 3 * 86400_000 - 60_000).toISOString(), fim: new Date(NOW - 3 * 86400_000).toISOString(), nota: 'Caminhos do app atualizados', mudancas: ['portal_beneficiarios'], feitos: 14, total: 14, custoUsd: 0.07, versao: 2, falhas: [] },

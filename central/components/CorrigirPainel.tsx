@@ -18,7 +18,7 @@ const DESTINO: Record<string, { rotulo: string; cor: string }> = {
 
 /**
  * Painel de correção (Teste e Conversas reais): a conversa fica travada; a equipe diz
- * como deveria ser e por quê; a IA analisa e ajusta a Base de dados no rascunho.
+ * como deveria ser e por quê; a IA analisa e ajusta o que ela sabe (aba Ensinar) no rascunho.
  */
 export default function CorrigirPainel({ origem, nome, cliente, resposta, pedido, resultado, onResultado, onFechar, onTestarRascunho, onMudou }: {
   origem: 'teste' | 'real'
@@ -72,7 +72,7 @@ export default function CorrigirPainel({ origem, nome, cliente, resposta, pedido
           <span className="w-8 h-8 rounded-lg border border-cyan/25 bg-cyan/[0.08] text-cyan flex items-center justify-center"><PenLine size={15} /></span>
           <div className="min-w-0 flex-1">
             <div className="text-[14px] font-medium text-ink">Corrigir esta resposta{origem === 'real' ? ` · conversa real${nome ? ` com ${nome}` : ''}` : ''}</div>
-            <div className="text-[10.5px] text-body-muted">A IA analisa e ajusta a Base de dados no rascunho. Nada muda no WhatsApp antes de publicar.</div>
+            <div className="text-[10.5px] text-body-muted">A IA ajusta o que a assistente sabe, no rascunho. Nada muda no WhatsApp antes de publicar.</div>
           </div>
           <button type="button" onClick={onFechar} className="p-2 rounded-lg text-body-muted hover:text-ink" aria-label="Fechar"><X size={15} /></button>
         </div>
@@ -143,8 +143,8 @@ export default function CorrigirPainel({ origem, nome, cliente, resposta, pedido
                     <FlaskConical size={13} /> Testar no laboratório com o rascunho
                   </Link>
                 ))}
-                {origem === 'teste' && <Link href="/base" className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-[8px] border border-line-soft text-[12.5px] text-body-mid hover:text-ink">
-                  Abrir a Base de dados <ArrowRight size={13} />
+                {origem === 'teste' && <Link href="/ensinar" className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-[8px] border border-line-soft text-[12.5px] text-body-mid hover:text-ink">
+                  Abrir Ensinar <ArrowRight size={13} />
                 </Link>}
               </div>
             </div>

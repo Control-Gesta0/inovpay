@@ -312,6 +312,33 @@ async function main() {
   const cx = cr.contextoReal(tr, '2026-10-08T22:01:00Z')
   eq('contexto da correção real', [cx?.resposta, cx?.lead.includes('CLIENTE: [cnpj]'), cx?.lead.includes('ASSISTENTE: Pra eu te ajudar')], ['Obrigado pelas informações!', true, true])
 
+  // ---------- Material anexado (arquivo ou link) ----------
+  const mat = await import('../lib/material')
+  const { emptyUsage } = await import('../lib/execlog')
+  eq('link: só http(s) público', ['https://inovpay.com.br/ajuda', 'http://localhost:3000', 'http://127.0.0.1/x', 'http://10.0.0.5', 'http://192.168.1.1', 'http://172.20.0.1', 'http://169.254.169.254/latest/meta-data', 'http://[::1]/', 'file:///etc/passwd', 'ftp://x.com', 'http://intranet.local'].map(l => !!mat.linkPermitido(l)), [true, false, false, false, false, false, false, false, false, false, false])
+  eq('Google Docs vira exportação em texto', mat.linkDeExportacao(new URL('https://docs.google.com/document/d/abc_123-X/edit?usp=sharing')).href, 'https://docs.google.com/document/d/abc_123-X/export?format=txt')
+  eq('Google Planilhas vira CSV', mat.linkDeExportacao(new URL('https://docs.google.com/spreadsheets/d/PLAN1/edit#gid=0')).href, 'https://docs.google.com/spreadsheets/d/PLAN1/export?format=csv')
+  eq('HTML vira texto (sem script e menu)', mat.htmlParaTexto('<html><head><style>x{}</style><script>alert(1)</script></head><body><nav>Menu</nav><h1>Ajuda</h1><p>Split&nbsp;até 14h</p><ul><li>Passo 1</li></ul></body></html>'), 'Ajuda\nSplit até 14h\n- Passo 1')
+  eq('links do texto (até 3, sem pontuação no fim)', mat.linksDoTexto('veja https://a.com/x, e https://b.com. e https://a.com/x e https://c.com e https://d.com'), ['https://a.com/x', 'https://b.com', 'https://c.com'])
+  const txt = await mat.lerArquivo({ nome: 'procedimento.txt', base64: Buffer.from('Para criar o Split: Portal ➝ Split ➝ Novo.\r\n\r\n\r\nPrazo: até 14h.').toString('base64') }, emptyUsage())
+  eq('arquivo de texto lido', [txt.erro ?? null, txt.texto], [null, 'Para criar o Split: Portal ➝ Split ➝ Novo.\n\nPrazo: até 14h.'])
+  const JSZip = (await import('jszip')).default
+  const zip = new JSZip()
+  zip.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>')
+  zip.file('_rels/.rels', '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>')
+  zip.file('word/document.xml', '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Troca de bobina</w:t></w:r></w:p><w:p><w:r><w:t>Abra a tampa e encaixe o rolo.</w:t></w:r></w:p></w:body></w:document>')
+  const docx = await mat.lerArquivo({ nome: 'manual.docx', base64: (await zip.generateAsync({ type: 'nodebuffer' })).toString('base64') }, emptyUsage())
+  eq('Word (.docx) lido', [docx.erro ?? null, docx.texto], [null, 'Troca de bobina\n\nAbra a tampa e encaixe o rolo.'])
+  eq('formato não aceito', !!(await mat.lerArquivo({ nome: 'planilha.xlsx', base64: 'AAAA' }, emptyUsage())).erro?.includes('salve como CSV'), true)
+  eq('arquivo grande demais', !!(await mat.lerArquivo({ nome: 'grande.txt', base64: Buffer.alloc(mat.MAX_ARQUIVO + 1, 97).toString('base64') }, emptyUsage())).erro?.includes('maior que 3 MB'), true)
+  eq('link interno não é buscado', (await mat.lerLink('http://169.254.169.254/latest/meta-data', emptyUsage())).erro, 'link inválido ou não público')
+  const sete = ['Bobina: abra a tampa e encaixe o rolo.', 'Bateria: carregue por duas horas antes do uso.', 'Senha do portal: use Esqueci minha senha na tela de entrada.', 'Comprovante: reimprima pelo menu Vendas da maquininha.', 'Chip: a maquininha usa o chip que já vem instalado.', 'Wi-Fi: Configurações, Rede, escolha a rede e digite a senha da rede.', 'Relatório: Portal, Relatórios, Vendas do período.']
+    .map((texto, i) => ({ tipo: 'nova', titulo: `Assunto ${i + 1}`, texto }))
+  eq('material: no máximo 6 informações novas por pedido', cur.aplicar({ mudancas: sete }, tp, []).erros.some(e => e.includes('máximo é 6')), true)
+  const cheias = Array.from({ length: 14 }, (_, i) => ({ id: `extra_${String(i).padStart(8, '0')}`, titulo: `Tema ${i}`, texto: 'x'.repeat(1400) }))
+  eq('material: informações acrescentadas não passam de 20 mil caracteres', cur.aplicar({ mudancas: [{ tipo: 'nova', titulo: 'Mais uma', texto: 'y'.repeat(1400) }] }, tp, cheias).erros.some(e => e.includes('passariam de 20000')), true)
+  eq('material: remover continua valendo acima do limite', cur.aplicar({ mudancas: [{ tipo: 'remover', id: cheias[0].id }] }, tp, cheias).erros, [])
+
   console.log(falhas ? `\n❌ ${falhas} falha(s)` : '\n✅ tudo certo')
   process.exit(falhas ? 1 : 0)
 }

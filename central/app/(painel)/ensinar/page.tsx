@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, BookOpenText, Bot, CheckCircle2, FlaskConical, History, ListChecks, Loader2, MessageCircleWarning, MessagesSquare, PenLine, Pencil, Search, Send, ShieldCheck, Undo2, Upload, UserRound, XCircle } from 'lucide-react'
+import { AlertTriangle, BookOpenText, Bot, CheckCircle2, FileText, FlaskConical, History, Link2, ListChecks, Loader2, MessageCircleWarning, MessagesSquare, Paperclip, PenLine, Pencil, Search, Send, ShieldCheck, Undo2, Upload, UserRound, X, XCircle } from 'lucide-react'
 import FocusNav, { type FocusItem } from '@/components/FocusNav'
 import { PageIntro, SectionTitle } from '@/components/ProductUI'
 import RefreshButton from '@/components/RefreshButton'
@@ -39,7 +39,7 @@ const CENARIO: Record<string, string> = {
   'nao-cliente-documento-no-cadastro': 'Não cliente com documento no cadastro',
 }
 
-export default function Base() {
+export default function Ensinar() {
   const [view, setView] = useState<View>('conversa')
   const [dados, setDados] = useState<(BaseEstado & { demo?: boolean }) | null>(null)
   const [erro, setErro] = useState<string | null>(null)
@@ -124,7 +124,7 @@ export default function Base() {
 
   return (
     <div className="space-y-8">
-      <PageIntro eyebrow="BASE DE DADOS" title="O que a assistente" accent="sabe." description="Os textos que ela manda e consulta. Para mudar ou acrescentar, peça em português: a IA faz a mudança e nada vale no WhatsApp antes do exame automático." action={<RefreshButton />} />
+      <PageIntro eyebrow="ENSINAR" title="O que a assistente" accent="sabe." description="Os textos que ela manda e consulta. Para mudar ou acrescentar, peça em português: a IA faz a mudança e nada vale no WhatsApp antes do exame automático." action={<RefreshButton />} />
 
       {dados?.demo && <p className="text-[12px] text-warning">Modo demonstração: os textos são os de verdade, mas pedir mudança e publicar precisam do agente.</p>}
       {erro && <div className="panel p-5 text-[13px] text-warning">Não consegui ler a base: {erro}</div>}
@@ -165,7 +165,7 @@ export default function Base() {
         {exame && <ResultadoExame exame={exame} />}
       </section>
 
-      <FocusNav items={VIEWS} value={view} onChange={setView} label="Áreas da base de dados" />
+      <FocusNav items={VIEWS} value={view} onChange={setView} label="Áreas de Ensinar" />
 
       {view === 'conversa' && <Conversa dados={dados} post={post} bloqueado={publicando || !!dados?.demo} />}
 
@@ -279,24 +279,63 @@ const DESTINO: Record<string, { rotulo: string; cor: string }> = {
   nenhum: { rotulo: 'NADA MUDOU', cor: '#737373' },
 }
 
+/** Material para a IA ler (o agente transforma em texto; o arquivo não fica guardado). */
+type Arquivo = { nome: string; tipo: string; tamanho: number; base64: string }
+const ACEITOS = ['pdf', 'docx', 'txt', 'md', 'csv', 'json', 'png', 'jpg', 'jpeg', 'webp']
+const MAX_BYTES = 3 * 1024 * 1024
+const tem_link = (t: string) => /https?:\/\/\S+/.test(t)
+const tamanhoLegivel = (b: number) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 / 1024).toFixed(1).replace('.', ',')} MB`)
+
+function lerBase64(f: File): Promise<string> {
+  return new Promise((ok, falha) => {
+    const fr = new FileReader()
+    fr.onload = () => ok(String(fr.result).replace(/^data:[^,]*,/, ''))
+    fr.onerror = () => falha(fr.error)
+    fr.readAsDataURL(f)
+  })
+}
+
 /** Pedir mudança: a conversa da equipe com a IA que cuida da base (com o histórico). */
 function Conversa({ dados, post, bloqueado }: { dados: (BaseEstado & { demo?: boolean }) | null; post: Post; bloqueado: boolean }) {
   const [texto, setTexto] = useState('')
+  const [arquivos, setArquivos] = useState<Arquivo[]>([])
+  const [arrastando, setArrastando] = useState(false)
+  const seletor = useRef<HTMLInputElement>(null)
   const [enviando, setEnviando] = useState(false)
   const [desfazendo, setDesfazendo] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [lendo, setLendo] = useState(false)
   const fim = useRef<HTMLDivElement>(null)
   const msgs = dados?.conversa || []
 
   useEffect(() => { fim.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [msgs.length, enviando])
 
+  const adicionar = async (lista: FileList | null) => {
+    if (!lista?.length) return
+    setErro(null)
+    const novos: Arquivo[] = []
+    for (const f of Array.from(lista)) {
+      const ext = (f.name.split('.').pop() || '').toLowerCase()
+      if (!ACEITOS.includes(ext)) { setErro(`"${f.name}": formato não aceito. Use PDF, Word (.docx), texto, CSV ou imagem${ext === 'xlsx' || ext === 'xls' ? ' (planilha: salve como CSV)' : ''}.`); continue }
+      if (arquivos.length + novos.length >= 3) { setErro('No máximo 3 arquivos por pedido.'); break }
+      const total = [...arquivos, ...novos].reduce((n, a) => n + a.tamanho, 0) + f.size
+      if (total > MAX_BYTES) { setErro(`"${f.name}" passa do limite de 3 MB por pedido (somando os arquivos).`); continue }
+      try { novos.push({ nome: f.name, tipo: f.type, tamanho: f.size, base64: await lerBase64(f) }) }
+      catch { setErro(`Não consegui abrir "${f.name}".`) }
+    }
+    if (novos.length) setArquivos(a => [...a, ...novos])
+    if (seletor.current) seletor.current.value = ''
+  }
+
   const enviar = async (t = texto) => {
     const pedido = t.trim()
-    if (!pedido || enviando) return
-    setEnviando(true); setErro(null); setTexto('')
-    const { ok, d } = await post({ acao: 'pedir', texto: pedido })
+    const anexos = t === texto ? arquivos : []
+    if ((!pedido && !anexos.length) || enviando) return
+    setEnviando(true); setErro(null); setTexto(''); if (anexos.length) setArquivos([])
+    setLendo(anexos.length > 0 || tem_link(pedido))
+    const { ok, d } = await post({ acao: 'pedir', texto: pedido, ...(anexos.length ? { anexos: anexos.map(({ nome, tipo, base64 }) => ({ nome, tipo, base64 })) } : {}) })
     setEnviando(false)
-    if (!ok) { setErro(d.erro || d.error || 'A IA não respondeu. Tente de novo.'); setTexto(pedido) }
+    if (!ok) { setErro(d.erro || d.error || 'A IA não respondeu. Tente de novo.'); setTexto(pedido); setArquivos(anexos) }
   }
   const desfazer = async (id: string) => {
     setDesfazendo(true); setErro(null)
@@ -329,8 +368,13 @@ function Conversa({ dados, post, bloqueado }: { dados: (BaseEstado & { demo?: bo
                     {m.correcao.comoDeveria && <div><span className="text-body-muted text-[11px]">Como deveria ser:</span><p className="whitespace-pre-wrap break-words mt-0.5">{m.correcao.comoDeveria}</p></div>}
                     {m.correcao.porque && <div><span className="text-body-muted text-[11px]">Por que está errado:</span><p className="whitespace-pre-wrap break-words mt-0.5">{m.correcao.porque}</p></div>}
                   </div>
-                ) : (
+                ) : m.texto ? (
                   <div className="rounded-[12px] rounded-br-[4px] px-3.5 py-2.5 bg-cyan/[0.12] border border-cyan/25 text-[13px] text-ink whitespace-pre-wrap break-words">{m.texto}</div>
+                ) : null}
+                {m.anexos && m.anexos.length > 0 && (
+                  <div className="flex flex-wrap justify-end gap-1.5 mt-1.5">
+                    {m.anexos.map((a, i) => <ChipMaterial key={i} a={a} />)}
+                  </div>
                 )}
                 <span className="font-mono text-[9px] text-body-faint mt-1 inline-flex items-center gap-1"><UserRound size={9} /> equipe · {dataHora(m.ts)}</span>
               </div>
@@ -353,23 +397,58 @@ function Conversa({ dados, post, bloqueado }: { dados: (BaseEstado & { demo?: bo
               </div>
             </div>
           ))}
-          {enviando && <div className="text-[11.5px] text-body-muted animate-pulse">A IA está lendo o pedido e a base… (uns 10 segundos)</div>}
+          {enviando && <div className="text-[11.5px] text-body-muted animate-pulse">{lendo ? 'A IA está lendo o material e a base… (arquivo grande ou PDF pode levar até 1 minuto)' : 'A IA está lendo o pedido e a base… (uns 10 segundos)'}</div>}
           <div ref={fim} />
         </div>
-        <div className="border-t border-line-soft p-3 md:p-4">
+        <div className={`border-t border-line-soft p-3 md:p-4 transition-colors ${arrastando ? 'bg-cyan/[0.06]' : ''}`}
+          onDragOver={e => { if (bloqueado) return; e.preventDefault(); setArrastando(true) }}
+          onDragLeave={() => setArrastando(false)}
+          onDrop={e => { e.preventDefault(); setArrastando(false); if (!bloqueado) adicionar(e.dataTransfer.files) }}>
           {erro && <p className="text-[12px] text-warning mb-2">{erro}</p>}
+          {arquivos.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {arquivos.map((a, i) => (
+                <span key={i} className="inline-flex items-center gap-1.5 max-w-full pl-2.5 pr-1 py-1 rounded-full border border-cyan/25 bg-cyan/[0.08] text-[11.5px] text-ink">
+                  <FileText size={12} className="text-cyan shrink-0" />
+                  <span className="truncate max-w-[180px]">{a.nome}</span>
+                  <span className="font-mono text-[9.5px] text-body-muted shrink-0">{tamanhoLegivel(a.tamanho)}</span>
+                  <button type="button" onClick={() => setArquivos(l => l.filter((_, j) => j !== i))} disabled={enviando} className="p-1 rounded-full text-body-muted hover:text-ink" aria-label={`Tirar ${a.nome}`}><X size={11} /></button>
+                </span>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2">
-            <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={2} disabled={bloqueado} placeholder="Ex.: o horário do D+0 mudou para 13h · acrescenta que aceitamos Pix por QR Code"
+            <input ref={seletor} type="file" multiple hidden accept={ACEITOS.map(e => `.${e}`).join(',')} onChange={e => adicionar(e.target.files)} />
+            <button type="button" onClick={() => seletor.current?.click()} disabled={bloqueado || enviando || arquivos.length >= 3} aria-label="Anexar arquivo" title="Anexar arquivo (PDF, Word, texto, CSV ou imagem)"
+              className="px-3 rounded-[10px] border border-line-soft text-body-mid hover:text-ink hover:border-cyan/25 disabled:opacity-30"><Paperclip size={16} /></button>
+            <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={2} disabled={bloqueado} placeholder={arquivos.length ? 'O que a IA deve fazer com o material? (opcional)' : 'Ex.: o horário do D+0 mudou para 13h · acrescenta que aceitamos Pix por QR Code'}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
-              className="campo flex-1 rounded-[10px] px-3.5 py-2.5 text-[13px] resize-none" />
-            <button type="button" onClick={() => enviar()} disabled={!texto.trim() || enviando || bloqueado} aria-label="Enviar pedido"
+              className="campo flex-1 min-w-0 rounded-[10px] px-3.5 py-2.5 text-[13px] resize-none" />
+            <button type="button" onClick={() => enviar()} disabled={(!texto.trim() && !arquivos.length) || enviando || bloqueado} aria-label="Enviar pedido"
               className="px-4 rounded-[10px] border border-cyan/30 bg-cyan/[0.12] text-cyan disabled:opacity-30">{enviando ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}</button>
           </div>
-          <p className="text-[10.5px] text-body-faint mt-2">Regra de atendimento (ordem das perguntas, quando passar para a equipe) vira pedido para a Control Gestão. Taxa e preço não entram na base.{dados?.pedidosControlGestao ? ` ${dados.pedidosControlGestao} pedido(s) registrados para a Control Gestão.` : ''}</p>
+          <p className="text-[10.5px] text-body-faint mt-2 inline-flex items-start gap-1.5"><Paperclip size={11} className="shrink-0 mt-[1px]" /><span>Anexe PDF, Word (.docx), texto, CSV ou imagem (até 3 arquivos, 3 MB no total; pode arrastar para cá) ou cole um link na mensagem (site, Google Docs ou Planilhas compartilhados). A IA lê, tira só o que a assistente precisa e mostra o que mudou; o arquivo não fica guardado.</span></p>
+          <p className="text-[10.5px] text-body-faint mt-1.5">Regra de atendimento (ordem das perguntas, quando passar para a equipe) vira pedido para a Control Gestão. Taxa e preço não entram na base.{dados?.pedidosControlGestao ? ` ${dados.pedidosControlGestao} pedido(s) registrados para a Control Gestão.` : ''}</p>
         </div>
       </div>
     </section>
   )
+}
+
+/** Arquivo ou link de um pedido, como a IA leu (ou por que não leu). */
+function ChipMaterial({ a }: { a: NonNullable<MsgConversa['anexos']>[number] }) {
+  const Icone = a.origem === 'link' ? Link2 : FileText
+  const corpo = (
+    <>
+      <Icone size={11} className={a.erro ? 'text-warning shrink-0' : 'text-cyan shrink-0'} />
+      <span className="truncate max-w-[200px]">{a.nome}</span>
+      <span className={`font-mono text-[9.5px] shrink-0 ${a.erro ? 'text-warning' : 'text-body-muted'}`}>{a.erro ? 'não lido' : `${a.caracteres.toLocaleString('pt-BR')} caracteres lidos`}</span>
+    </>
+  )
+  const cls = `inline-flex items-center gap-1.5 max-w-full px-2.5 py-1 rounded-full border text-[11px] text-body-mid ${a.erro ? 'border-warning/30 bg-warning/[0.05]' : 'border-line-soft surface-alt'}`
+  return a.url
+    ? <a href={a.url} target="_blank" rel="noopener noreferrer" title={a.erro || a.url} className={`${cls} hover:text-ink`}>{corpo}</a>
+    : <span title={a.erro || a.tipo} className={cls}>{corpo}</span>
 }
 
 /** Conversas reais do WhatsApp (do diário, com PII mascarada): abrir, ver cada resposta e corrigir. */

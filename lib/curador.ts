@@ -3,6 +3,7 @@ import { candidata, salvarNoRascunho } from './base'
 import { ITENS, aplicarTroca, ehExtraId, ehItem, trouxeTexto, validarExtra, validarTexto, type Extra, type ItemId, type Textos } from './base-core'
 import { CONFIG } from './config'
 import { addUsage, costUsd, emptyUsage } from './execlog'
+import { lerArquivo, lerLink, linksDoTexto, type Anexo, type MaterialLido } from './material'
 import { k, redis } from './redis'
 
 /**
@@ -55,11 +56,16 @@ export interface MsgConversa {
   mudancas?: Mudanca[]
   desfeita?: boolean
   custoUsd?: number | null
+  /** arquivos e links que a equipe mandou (só os metadados: o conteúdo não é guardado) */
+  anexos?: Array<Pick<MaterialLido, 'nome' | 'origem' | 'tipo' | 'caracteres' | 'url' | 'erro'>>
 }
 
 const K_CONVERSA = () => k('base', 'conversa')
 const K_PEDIDOS = () => k('base', 'pedidos')
 const MAX_DIA = 150
+/** por pedido e no total: tudo que for acrescentado entra no prompt de cada mensagem */
+export const MAX_NOVAS = 6
+export const MAX_EXTRAS = 20_000
 
 const novoId = (p: string) => `${p}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 
@@ -99,6 +105,12 @@ COMO RESPONDER À EQUIPE
 - Fale no passado do que você FEZ NA BASE, nomeando o texto ou a informação ("Troquei 14h por 13h no texto do split.", "Acrescentei a informação \"Formas de pagamento\"."). Você não muda a conversa nem a triagem: só textos e informações da base. Não fale de publicar, de exame nem de rascunho: o sistema acrescenta esse aviso. Não diga que a assistente "já passa a" fazer algo.
 - Em "control_gestao" e "recusado" você não mudou nada: diga isso com clareza.
 - Se a conversa (de teste ou real) usou os textos NO AR e o que faltou já está no RASCUNHO (informação acrescentada ou texto já trocado), não crie de novo: destino "nenhum", explique que já está no rascunho e falta publicar.
+
+MATERIAL ANEXADO (arquivo ou link que a equipe mandou)
+- Use como FONTE. Tire só o que a assistente precisa saber para atender: procedimentos, caminhos no portal e no app, regras e prazos operacionais, o que o produto faz.
+- Se o material atualiza um TEXTO FIXO, use "trocar" nele. O resto vira informações novas curtas, uma por assunto (no máximo ${MAX_NOVAS} por pedido, até 1.500 caracteres cada; todas as acrescentadas somadas não passam de ${MAX_EXTRAS.toLocaleString('pt-BR')} caracteres), escritas como fato, em poucas frases.
+- Nunca copie dados pessoais de clientes, taxa, porcentagem, preço, valor em reais ou senha, mesmo que estejam no material.
+- Se o material não tem nada útil para o atendimento, destino "nenhum" e explique.
 
 FORMATO (só JSON)
 {"resposta":"o que você entendeu e o que fez, 1 a 3 frases, falando com a equipe","destino":"base|nova_informacao|control_gestao|recusado|pergunta|nenhum","como_deveria":"","por_que":"","mudancas":[]}`
@@ -161,6 +173,12 @@ export function aplicar(saida: Saida, textos: Textos, extras: Extra[]): { textos
       erros.push(`tipo de mudança desconhecido: ${m.tipo}`)
     }
   }
+  // a assistente lê as informações acrescentadas a cada mensagem: material grande não pode inchar o prompt
+  const novas = mudancas.filter(m => m.tipo === 'nova').length
+  if (novas > MAX_NOVAS) erros.push(`${novas} informações novas de uma vez; o máximo é ${MAX_NOVAS} por pedido: junte as do mesmo assunto e deixe só o que a assistente precisa para responder`)
+  const tamanho = (l: Extra[]) => l.reduce((n, e) => n + e.titulo.length + e.texto.length, 0)
+  const total = tamanho(ex)
+  if (total > MAX_EXTRAS && total > tamanho(extras)) erros.push(`as informações acrescentadas passariam de ${MAX_EXTRAS} caracteres (ficariam com ${total}): resuma, junte as do mesmo assunto ou remova as que não valem mais`)
   return { textos: t, extras: ex, mudancas, erros }
 }
 
@@ -168,16 +186,33 @@ export function aplicar(saida: Saida, textos: Textos, extras: Extra[]): { textos
  * Pedido da equipe (texto livre) ou correção do laboratório. A IA responde,
  * e o que ela mudar vai para o rascunho. Devolve as duas mensagens gravadas.
  */
-export async function pedir(texto: string, correcao?: Correcao): Promise<{ equipe?: MsgConversa; ia?: MsgConversa; erro?: string }> {
+export async function pedir(texto: string, correcao?: Correcao, anexos: Anexo[] = []): Promise<{ equipe?: MsgConversa; ia?: MsgConversa; erro?: string }> {
   const pedido = String(texto || '').trim().slice(0, 2000)
-  if (!pedido && !correcao) return { erro: 'Escreva o que você quer mudar.' }
+  const links = correcao ? [] : linksDoTexto(pedido)
+  if (!pedido && !correcao && !anexos.length) return { erro: 'Escreva o que você quer mudar ou anexe um arquivo.' }
+  if (anexos.length > 3) return { erro: 'Mande no máximo 3 arquivos por vez.' }
   const dia = k('base', 'curador', new Date().toISOString().slice(0, 10))
   const usados = await redis.incr(dia)
   if (usados === 1) await redis.expire(dia, 2 * 86400)
   if (usados > MAX_DIA) return { erro: `Limite de ${MAX_DIA} pedidos por dia atingido (protege o custo). Volta amanhã.` }
 
+  // Arquivo e link viram texto UMA vez, aqui (o arquivo não é guardado)
+  const usoLeitura = emptyUsage()
+  const material: MaterialLido[] = [
+    ...await Promise.all(anexos.map(a => lerArquivo(a, usoLeitura))),
+    ...await Promise.all(links.map(l => lerLink(l, usoLeitura))),
+  ]
+  const lidos = material.filter(m => !m.erro)
+  const semTexto = !pedido.replace(/https?:\/\/\S+/g, '').trim()
+  if (material.length && !lidos.length && semTexto && !correcao) {
+    return { erro: `Não consegui ler ${material.map(m => `"${m.nome}" (${m.erro})`).join(', ')}.` }
+  }
+
   const historico = await lerConversa(12)
-  const equipe: MsgConversa = { id: novoId('m'), ts: new Date().toISOString(), papel: 'equipe', texto: pedido, origem: correcao ? (correcao.fonte === 'real' ? 'real' : 'teste') : 'base', correcao }
+  const equipe: MsgConversa = {
+    id: novoId('m'), ts: new Date().toISOString(), papel: 'equipe', texto: pedido, origem: correcao ? (correcao.fonte === 'real' ? 'real' : 'teste') : 'base', correcao,
+    ...(material.length ? { anexos: material.map(({ nome, origem, tipo, caracteres, url, erro }) => ({ nome, origem, tipo, caracteres, ...(url ? { url } : {}), ...(erro ? { erro } : {}) })) } : {}),
+  }
   await guardar(equipe)
 
   const c = await candidata()
@@ -186,18 +221,26 @@ export async function pedir(texto: string, correcao?: Correcao): Promise<{ equip
   const usage = emptyUsage()
   const pedidoTexto = correcao
     ? `${correcao.fonte === 'real' ? `CORREÇÃO DE UMA CONVERSA REAL NO WHATSAPP (contato ${correcao.nome || 'sem nome'})\nConversa real até a resposta marcada` : 'CORREÇÃO VINDA DO LABORATÓRIO\nConversa de teste até a resposta marcada'}:\n${correcao.lead}\n\nRESPOSTA QUE A EQUIPE MARCOU COMO ERRADA:\n${correcao.resposta}\n\nCOMO A EQUIPE DIZ QUE DEVERIA SER: ${correcao.comoDeveria || '(não disse)'}\nPOR QUE A EQUIPE ACHA QUE ESTÁ ERRADO: ${correcao.porque || '(não disse)'}${pedido ? `\nOBSERVAÇÃO: ${pedido}` : ''}`
-    : `PEDIDO DA EQUIPE: ${pedido}`
+    : `PEDIDO DA EQUIPE: ${pedido || '(sem texto: use o material anexado para atualizar a base)'}`
+  // material: até 12 mil caracteres por item e 24 mil no total (o resto não cabe com qualidade num pedido)
+  let orcamento = 24_000
+  const blocoMaterial = lidos.map(m => {
+    const t = m.texto.slice(0, Math.min(12_000, Math.max(0, orcamento)))
+    orcamento -= t.length
+    return `### ${m.nome} (${m.origem === 'link' ? `link ${m.url}` : `arquivo ${m.tipo}`}, ${m.caracteres} caracteres${t.length < m.caracteres ? `, cortado em ${t.length}` : ''})\n${t}`
+  }).filter(b => !/\n$/.test(b)).join('\n\n')
+  const falharam = material.filter(m => m.erro).map(m => `"${m.nome}": ${m.erro}`)
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: 'system', content: SISTEMA },
     { role: 'system', content: descreverBase(c.textos, c.extras) },
     { role: 'system', content: `CONVERSA ATÉ AQUI COM A EQUIPE\n${resumoConversa(historico)}` },
-    { role: 'user', content: pedidoTexto },
+    { role: 'user', content: pedidoTexto + (blocoMaterial ? `\n\nMATERIAL ANEXADO PELA EQUIPE\n\n${blocoMaterial}` : '') + (falharam.length ? `\n\n(não deu para ler: ${falharam.join('; ')})` : '') },
   ]
 
   let saida: Saida = {}
   let resultado = aplicar({}, c.textos, c.extras)
   for (let tentativa = 0; tentativa < 3; tentativa++) {
-    const r = await openai.chat.completions.create({ model: modelo, messages, response_format: { type: 'json_object' }, max_completion_tokens: 3000 })
+    const r = await openai.chat.completions.create({ model: modelo, messages, response_format: { type: 'json_object' }, max_completion_tokens: lidos.length ? 6000 : 3000 })
     addUsage(usage, r.usage)
     const bruto = r.choices[0]?.message?.content || '{}'
     try { saida = JSON.parse(bruto) as Saida } catch { saida = { resposta: 'Não consegui entender o pedido. Pode explicar de outro jeito?', destino: 'pergunta', mudancas: [] } }
@@ -210,7 +253,9 @@ export async function pedir(texto: string, correcao?: Correcao): Promise<{ equip
     messages.push({ role: 'system', content: `[SISTEMA] Nada foi aplicado. Problemas: ${resultado.erros.join(' | ')}. Corrija e devolva o JSON completo de novo (o "de" precisa ser copiado exatamente do texto atual e aparecer uma vez).` })
   }
 
-  const custoUsd = costUsd(modelo, usage)
+  const custoModelo = costUsd(modelo, usage)
+  const custoLeitura = usoLeitura.calls ? costUsd(CONFIG.visionModel, usoLeitura) : 0
+  const custoUsd = custoModelo === null || custoLeitura === null ? null : Math.round((custoModelo + custoLeitura) * 1e6) / 1e6
   let destino: Destino = (['base', 'nova_informacao', 'control_gestao', 'recusado', 'pergunta', 'nenhum'] as const).find(d => d === saida.destino) || 'nenhum'
   let resposta = String(saida.resposta || '').trim() || 'Pronto.'
   if (resultado.erros.length) {
@@ -227,6 +272,7 @@ export async function pedir(texto: string, correcao?: Correcao): Promise<{ equip
     await redis.ltrim(K_PEDIDOS(), 0, 199)
   }
 
+  if (falharam.length) resposta += ` Não consegui ler: ${falharam.join('; ')}.`
   if (destino === 'control_gestao') resposta += ' Nada mudou na base: ficou registrado como pedido para a Control Gestão.'
   if (resultado.mudancas.length) resposta += ' Está no rascunho: teste e publique com o exame para valer no WhatsApp.'
   const ia: MsgConversa = {

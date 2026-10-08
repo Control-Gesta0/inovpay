@@ -130,7 +130,7 @@ export default function Teste() {
             <span className="w-8 h-8 rounded-full border border-cyan/25 bg-cyan/[0.08] text-cyan flex items-center justify-center"><Bot size={15} /></span>
             <div className="min-w-0">
               <div className="text-[13px] font-medium text-ink">Assistente virtual · InovPay</div>
-              <div className="text-[10.5px] text-body-muted">{opcoes.versao === 'rascunho' ? 'usando o rascunho da Base de dados' : 'usando os textos que estão no ar'}{opcoes.fora ? ' · simulando fora do horário' : ''}</div>
+              <div className="text-[10.5px] text-body-muted">{opcoes.versao === 'rascunho' ? 'usando o rascunho de Ensinar' : 'usando os textos que estão no ar'}{opcoes.fora ? ' · simulando fora do horário' : ''}</div>
             </div>
           </div>
 
@@ -228,7 +228,7 @@ export default function Teste() {
               )}
             </div>
           </section>
-          <Link href="/base?ver=reais" className="panel interactive-card p-4 flex items-start gap-3">
+          <Link href="/ensinar?ver=reais" className="panel interactive-card p-4 flex items-start gap-3">
             <MessagesSquare size={15} className="text-cyan shrink-0 mt-0.5" />
             <span className="min-w-0">
               <span className="block text-[12.5px] font-medium text-ink">Corrigir uma conversa real</span>

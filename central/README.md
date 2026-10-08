@@ -7,7 +7,7 @@ Control Gestão (padrão Central v4.1) em **três abas**:
 |---|---|---|
 | Estatísticas | `/` · `/operacao` · `/resultados` · `/configuracoes` | visão geral, operação, resultados e sistema (subabas) |
 | Teste | `/teste` | laboratório: conversa com a assistente sem tocar no GHL; botão Corrigir em cada resposta |
-| Base de dados | `/base` | a equipe pede mudanças em português e a IA altera; publica só depois do exame automático |
+| Ensinar | `/ensinar` (o antigo `/base` redireciona) | a equipe pede mudanças em português, com arquivo ou link se quiser, e a IA altera; publica só depois do exame automático |
 
 - Estatísticas: só leitura e **zero tokens**, tudo calculado em código a partir do
   diário do agente e do GHL. Teste e o exame da Base usam o modelo (o custo aparece na tela).
@@ -47,7 +47,7 @@ aqui é o espelho: mudou lá, mude aqui.
 `CENTRAL_DEMO` fica **vazio** em produção.
 
 4. Smoke: `/login`, depois `/`, `/operacao`, `/resultados`, `/configuracoes`
-   (Sistema: agente e CRM verdes), `/teste` (mandar uma mensagem) e `/base`.
+   (Sistema: agente e CRM verdes), `/teste` (mandar uma mensagem) e `/ensinar`.
 
 ## Rodar local
 

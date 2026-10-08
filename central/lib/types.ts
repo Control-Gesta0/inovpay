@@ -154,6 +154,8 @@ export interface MsgConversa {
   mudancas?: MudancaBase[]
   desfeita?: boolean
   custoUsd?: number | null
+  /** arquivos e links do pedido, como a IA leu (o arquivo não fica guardado) */
+  anexos?: Array<{ nome: string; origem: 'arquivo' | 'link'; tipo: string; caracteres: number; url?: string; erro?: string }>
 }
 
 export interface BaseEstado {

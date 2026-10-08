@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart3, Database, FlaskConical, LogOut } from 'lucide-react'
+import { BarChart3, FlaskConical, GraduationCap, LogOut } from 'lucide-react'
 import Logo from './Logo'
 import ToggleTema from './ToggleTema'
 import { sair } from '@/app/login/acoes'
@@ -17,7 +17,7 @@ const ESTATISTICAS = ['/', '/operacao', '/resultados', '/configuracoes']
 const NAV = [
   { href: '/', label: 'Estatísticas', hint: 'operação e resultados', Icon: BarChart3 },
   { href: '/teste', label: 'Teste', hint: 'converse com a assistente', Icon: FlaskConical },
-  { href: '/base', label: 'Base de dados', hint: 'o que ela sabe', Icon: Database },
+  { href: '/ensinar', label: 'Ensinar', hint: 'o que ela sabe', Icon: GraduationCap },
 ]
 
 function ativo(path: string, href: string) {
