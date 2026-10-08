@@ -110,3 +110,61 @@ export interface RecoveryData {
   definicao: { resposta: string; objetivo: string; janelaHoras: number; cadenciaHoras: number[] }
   observacao: string
 }
+
+// ---------- Base de dados (espelho de ../api/base.ts e ../lib/exame.ts) ----------
+
+export interface BaseItem {
+  id: string
+  grupo: string
+  titulo: string
+  ajuda: string
+  padrao: string
+  noAr: string
+  rascunho: string | null
+  problemas: string[]
+}
+
+export interface Exame {
+  id: string
+  status: 'rodando' | 'aprovado' | 'reprovado' | 'erro'
+  inicio: string
+  fim?: string
+  nota: string
+  mudancas: string[]
+  feitos: number
+  total: number
+  custoUsd?: number
+  versao?: number
+  falhas?: Array<{ cenario: string; motivos: string[]; conversa: Array<{ lead: string; resposta: string }> }>
+  instaveis?: string[]
+  erro?: string
+}
+
+export interface BaseEstado {
+  versao: number
+  publicadoEm: string | null
+  nota: string | null
+  rascunhoEm: string | null
+  grupos: Record<string, string>
+  itens: BaseItem[]
+  alteracoes: string[]
+  historico: Array<{ versao: number; publicadoEm: string | null; nota: string | null; mudancas: string[] }>
+  exame: Exame | null
+}
+
+// ---------- Laboratório (espelho de ../lib/teste.ts) ----------
+
+export interface TesteOpcoes { perfil: 'novo' | 'com_documento'; fora: boolean; versao: 'vigente' | 'rascunho' }
+
+export interface TesteSessao {
+  id: string
+  criadoEm: string
+  opcoes: TesteOpcoes
+  history: Array<{ id: string; dir: 'in' | 'out'; text: string; ts: number }>
+  mundo: { documento: string; tags: string[]; notes: string[]; state: { tipo?: 'cliente' | 'nao_cliente'; dados?: Record<string, string>; finalizado?: { motivo: string; em: string; resumo: string } } }
+  detalhes: Record<string, { tools: string[]; log: string[]; guard: string[]; ms: number; custoUsd: number; handoff: boolean }>
+  turnos: number
+  custoUsd: number
+}
+
+export interface TesteUso { mensagens: number; custoUsd: number; limite: number; usdBrl: number }

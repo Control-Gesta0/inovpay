@@ -12,10 +12,13 @@ for (const [key, val] of Object.entries({ GHL_TOKEN: 'pit-eval', GHL_LOCATION_ID
 async function main() {
   if (!process.env.OPENAI_API_KEY) { console.error('OPENAI_API_KEY ausente (.env.local ou ambiente)'); process.exit(1) }
   const { runEvals } = await import('../lib/evals-runner')
-  const { CENARIOS } = await import('../evals/cenarios')
+  const { cenarios } = await import('../evals/cenarios')
+  const { textosPadrao } = await import('../lib/base-core')
+  const { loadPrompt } = await import('../lib/llm')
   const r = await runEvals({
     apiKey: process.env.OPENAI_API_KEY!,
-    cenarios: CENARIOS,
+    cenarios: cenarios(textosPadrao(loadPrompt())),
+    textos: textosPadrao(loadPrompt()),
     model: process.env.LLM_MODEL || 'gpt-5.4-mini-2026-03-17',
     judgeModel: process.env.EVAL_JUDGE_MODEL || 'gpt-5.4-2026-03-05',
     filtros: process.argv.slice(2),

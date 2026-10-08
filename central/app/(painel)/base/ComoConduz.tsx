@@ -1,5 +1,5 @@
-import { GraduationCap, ListChecks, ShieldCheck } from 'lucide-react'
-import { PageIntro, SectionTitle } from '@/components/ProductUI'
+import { ListChecks, ShieldCheck } from 'lucide-react'
+import { SectionTitle } from '@/components/ProductUI'
 
 const ETAPAS = [
   ['1. Cliente ou não cliente', 'Cumprimento curto e a pergunta "Você já é cliente da InovPay?", a menos que a mensagem já deixe claro (venda na maquininha, estorno, portal: cliente; quer abrir conta: não cliente). Quando o texto é explícito, quem decide é o código.'],
@@ -21,19 +21,12 @@ const TRAVAS = [
   'Recua quando alguém da equipe escreveu na conversa nas últimas 6 horas.',
 ]
 
-export default function Ensinar() {
+/** O roteiro e as travas (só leitura): mudar o comportamento passa pela Control Gestão, com o exame antes. */
+export default function ComoConduz() {
   return (
     <div className="space-y-8">
-      <PageIntro eyebrow="ENSINAR" title="Como a assistente conduz" accent="hoje." description="Edição pela Central chega na fase 2. Por enquanto, mudanças no comportamento passam pela Control Gestão, com testes antes de publicar." />
-      <section className="panel p-5 md:p-6 flex items-start gap-4">
-        <span className="metric-icon text-cyan bg-cyan/[0.07] border-cyan/20 shrink-0"><GraduationCap size={15} /></span>
-        <div>
-          <h2 className="font-impact font-bold text-[15px] text-ink">Fase 2: ensinar sem mexer no prompt</h2>
-          <p className="text-[12.5px] leading-relaxed text-body-mid mt-1.5">Testar uma conversa ao vivo, apontar o erro e escrever a resposta ideal em português. A correção só é publicada se passar nos testes de qualidade.</p>
-        </div>
-      </section>
       <section>
-        <SectionTitle eyebrow="ROTEIRO DA INOVPAY · FAQ ATUALIZADO EM 06/10/2026" title="A jornada que a assistente segue." />
+        <SectionTitle eyebrow="ROTEIRO DA INOVPAY · FAQ ATUALIZADO EM 06/10/2026" title="A jornada que a assistente segue." description="Só leitura. Mudança no roteiro ou nas regras passa pela Control Gestão e pelo mesmo exame antes de valer." />
         <div className="panel overflow-hidden">
           {ETAPAS.map(([t, d], i) => (
             <div key={t} className={`px-5 py-4 flex gap-4 ${i ? 'border-t border-line-soft' : ''}`}>

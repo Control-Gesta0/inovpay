@@ -1,8 +1,9 @@
 // npx tsx scripts/demo-central.ts — gera central/lib/demo-data.json (dados FICTÍCIOS)
 // com as mesmas funções que o agente usa em /api/central. Só para CENTRAL_DEMO=1.
-import { writeFileSync } from 'fs'
+import { readFileSync, writeFileSync } from 'fs'
 import { buildConversas, buildExecutionData, buildFunil, buildRecovery, type GhlOppResumo } from '../lib/central-data'
 import type { ExecEntry } from '../lib/execlog'
+import { GRUPOS, ITENS, textosPadrao, validarTexto } from '../lib/base-core'
 
 const NOW = Date.now()
 const min = (m: number) => new Date(NOW - m * 60_000).toISOString()
@@ -98,5 +99,46 @@ const live = {
   regras: { modoGate: 'tag', gateTag: 'ia', humanTag: 'atendimento-humano', expediente: 'segunda a sexta, das 9h às 18h' },
   saude: { crmOk: true, problemas: [] },
 }
-writeFileSync('central/lib/demo-data.json', JSON.stringify({ execucoes, live, recuperacao: buildRecovery() }))
+// Base de dados: os textos reais, com um rascunho de exemplo
+const padrao = textosPadrao(readFileSync('prompts/inovpay.md', 'utf-8'))
+const rascunho: Record<string, string> = { portal_relatorio: padrao.portal_relatorio + '\n💡 Dica: o relatório pode ser exportado em planilha.' }
+const base = {
+  versao: 2, publicadoEm: new Date(NOW - 3 * 86400_000).toISOString(), nota: 'Caminhos do app atualizados', rascunhoEm: new Date(NOW - 3600_000).toISOString(),
+  grupos: GRUPOS,
+  itens: ITENS.map(i => ({ id: i.id, grupo: i.grupo, titulo: i.titulo, ajuda: i.ajuda, padrao: padrao[i.id], noAr: padrao[i.id], rascunho: rascunho[i.id] ?? null, problemas: rascunho[i.id] ? validarTexto(i.id, rascunho[i.id]) : [] })),
+  alteracoes: Object.keys(rascunho),
+  historico: [
+    { versao: 1, publicadoEm: new Date(NOW - 6 * 86400_000).toISOString(), nota: 'Encerramento do comercial mais curto', mudancas: ['enc_comercial'] },
+    { versao: 0, publicadoEm: null, nota: null, mudancas: [] },
+  ],
+  exame: { id: 'exdemo', status: 'aprovado', inicio: new Date(NOW - 3 * 86400_000 - 60_000).toISOString(), fim: new Date(NOW - 3 * 86400_000).toISOString(), nota: 'Caminhos do app atualizados', mudancas: ['portal_beneficiarios'], feitos: 14, total: 14, custoUsd: 0.07, versao: 2, falhas: [] },
+}
+// Laboratório: uma conversa de exemplo
+const h = (id: string, dir: 'in' | 'out', text: string, m: number) => ({ id, dir, text, ts: NOW - m * 60_000 })
+const teste = {
+  sessao: {
+    id: 'tdemo', criadoEm: new Date(NOW - 600_000).toISOString(), opcoes: { perfil: 'novo', fora: false, versao: 'vigente' },
+    history: [
+      h('l0', 'in', 'oi, minha maquininha não liga', 9),
+      h('r1', 'out', 'Oi! Seja bem-vindo(a) à InovPay. Já vou te ajudar com a maquininha. Pra eu te ajudar, me passa o CPF ou CNPJ cadastrado? Ele é usado só pra este atendimento, conforme a nossa Política de Privacidade.', 9),
+      h('l2', 'in', '11.222.333/0001-81', 8),
+      h('r3', 'out', 'Em poucas palavras, me conta o que está acontecendo com a sua maquininha. Se puder, manda uma foto ou um vídeo mostrando o problema.', 8),
+      h('l4', 'in', 'não acende nada, já carreguei a noite toda', 7),
+      h('r5', 'out', 'Obrigado pelas informações! Seu atendimento foi registrado e vai para um dos nossos especialistas. Você não vai precisar repetir o que já mandou.', 7),
+    ],
+    mundo: {
+      documento: '11.222.333/0001-81', tags: ['atendimento-humano', 'em contato'],
+      notes: ['Passagem da IA para a equipe: Suporte · maquininha\nTipo: cliente\nCPF/CNPJ: 11.222.333/0001-81\n\nResumo: maquininha não liga, carregou a noite toda.\n\nDados coletados:\n- A maquininha liga?: não liga\n- Descrição do problema: não acende nada, já carreguei a noite toda'],
+      state: { tipo: 'cliente', dados: { assunto: 'maquininha', estado_maquininha: 'não liga', descricao: 'não acende nada, já carreguei a noite toda' }, finalizado: { motivo: 'suporte_maquininha', em: new Date(NOW - 420_000).toISOString(), resumo: 'maquininha não liga' } },
+    },
+    detalhes: {
+      r1: { tools: ['definir_tipo'], log: ['definir_tipo({"tipo":"cliente"}) → ok: cliente'], guard: [], ms: 9800, custoUsd: 0.0021, handoff: false },
+      r3: { tools: ['gravar_documento', 'anotar'], log: ['gravar_documento({"documento":"11.222.333/0001-81"}) → ok: CNPJ válido gravado', 'anotar({"campo":"estado_maquininha","valor":"não liga"}) → ok'], guard: [], ms: 11200, custoUsd: 0.0024, handoff: false },
+      r5: { tools: ['anotar', 'passar_para_humano'], log: ['anotar({"campo":"descricao","valor":"não acende nada, já carreguei a noite toda"}) → ok', 'passar_para_humano({"motivo":"suporte_maquininha"}) → ok: passado para a equipe'], guard: [], ms: 12900, custoUsd: 0.0027, handoff: true },
+    },
+    turnos: 3, custoUsd: 0.0072,
+  },
+  uso: { mensagens: 3, custoUsd: 0.0072, limite: 300, usdBrl: 5.4 },
+}
+writeFileSync('central/lib/demo-data.json', JSON.stringify({ execucoes, live, recuperacao: buildRecovery(), base, teste }))
 console.log(`demo: ${entries.length} execuções, ${opps.length} oportunidades → central/lib/demo-data.json`)

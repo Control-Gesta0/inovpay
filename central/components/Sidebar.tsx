@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Activity, BarChart3, GraduationCap, LayoutDashboard, LogOut, Settings2 } from 'lucide-react'
+import { BarChart3, Database, FlaskConical, LogOut } from 'lucide-react'
 import Logo from './Logo'
 import ToggleTema from './ToggleTema'
 import { sair } from '@/app/login/acoes'
@@ -10,18 +10,19 @@ import { sair } from '@/app/login/acoes'
 export const NOME_CLIENTE = 'InovPay'
 /** a assistente virtual da InovPay no WhatsApp (feminino nos textos: "a assistente") */
 export const NOME_AGENTE = 'Assistente virtual'
-export const SISTEMA_VERSAO = 'CENTRAL V4.1 · FASE 1'
+export const SISTEMA_VERSAO = 'CENTRAL V4.1 · 3 ABAS'
+
+const ESTATISTICAS = ['/', '/operacao', '/resultados', '/configuracoes']
 
 const NAV = [
-  { href: '/', label: 'Visão Geral', hint: 'saúde e decisões', Icon: LayoutDashboard },
-  { href: '/operacao', label: 'Operação', hint: 'agora e histórico', Icon: Activity },
-  { href: '/cerebro', label: 'Ensinar', hint: 'fase 2', Icon: GraduationCap },
-  { href: '/resultados', label: 'Resultados', hint: 'valor e custos', Icon: BarChart3 },
-  { href: '/configuracoes', label: 'Configurações', hint: 'regras e sistema', Icon: Settings2 },
+  { href: '/', label: 'Estatísticas', hint: 'operação e resultados', Icon: BarChart3 },
+  { href: '/teste', label: 'Teste', hint: 'converse com a assistente', Icon: FlaskConical },
+  { href: '/base', label: 'Base de dados', hint: 'o que ela sabe', Icon: Database },
 ]
 
 function ativo(path: string, href: string) {
-  return href === '/' ? path === '/' : path.startsWith(href)
+  if (href === '/') return ESTATISTICAS.some(h => (h === '/' ? path === '/' : path.startsWith(h)))
+  return path.startsWith(href)
 }
 
 export default function Sidebar() {

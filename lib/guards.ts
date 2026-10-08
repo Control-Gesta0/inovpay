@@ -43,8 +43,11 @@ const numerosDo = (texto: string) => new Set((texto.match(/\d[\d.,]*/g) || []).m
  * `textoLead`: o que a pessoa escreveu. Valor que ELA disse (ex.: "venda de 350 reais")
  * pode ser repetido na confirmação: a trava de valor/taxa barra só número que veio da IA.
  */
-export function checkReply(text: string, opts: { foraDoHorario?: boolean; textoLead?: string; handoff?: boolean; tipoDesconhecido?: boolean } = {}): Violation[] {
+export function checkReply(text: string, opts: { foraDoHorario?: boolean; textoLead?: string; handoff?: boolean; tipoDesconhecido?: boolean; tipoConhecido?: boolean } = {}): Violation[] {
   const out: Violation[] = []
+  // Já se sabe se é cliente (o cadastro ou a conversa disse): perguntar de novo irrita e atrasa (exame de 08/10/2026)
+  const deNovo = opts.tipoConhecido ? text.match(/(voc[eê] )?j[aá] [eé] cliente( da inovpay)?\s*\?/i) : null
+  if (deNovo) out.push({ regra: 'perguntou de novo se é cliente', trecho: deNovo[0] })
   // Ainda não se sabe se é cliente e a resposta não pergunta: a triagem toda depende disso
   if (opts.tipoDesconhecido && !opts.handoff && !/\bcliente\b/i.test(text)) out.push({ regra: 'não perguntou se é cliente', trecho: text.slice(0, 40) })
   const regras = [...REGRAS, ...(opts.foraDoHorario ? [REGRA_FORA_DO_HORARIO] : []), ...(opts.handoff === false ? [REGRA_PROMESSA_SEM_PASSAGEM] : [])]
@@ -99,15 +102,20 @@ export function ehAutoResposta(text: string): boolean {
 export const ehNaoSuportada = (text: string) => /message type is currently not supported/i.test(text)
 
 /**
- * Mascara e-mail, CPF, CNPJ (inclusive o alfanumérico) e telefone antes de
+ * Mascara e-mail, CNPJ (inclusive o alfanumérico), CPF e telefone antes de
  * guardar texto de conversa no diário que a Central mostra.
+ * A ORDEM importa (cicatriz da Escola, 22/07/2026): celular com DDD tem 11
+ * dígitos como o CPF, então o telefone sai antes do CPF cru; e a fronteira é de
+ * DÍGITO, não \b (que não casa antes de "(").
  */
 export function mascararPII(texto: string): string {
   return texto
-    .replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '[e-mail]')
-    .replace(/\b[A-Z0-9]{2}\.[A-Z0-9]{3}\.[A-Z0-9]{3}\/[A-Z0-9]{4}-\d{2}\b/gi, '[cnpj]')
-    .replace(/\b\d{14}\b/g, '[cnpj]')
-    .replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, '[cpf]')
-    .replace(/(\+?55\s?)?\(?\b\d{2}\)?\s?9?\d{4}[-\s]?\d{4}\b/g, '[telefone]')
+    .replace(/[\w.+-]+@[\w-]+\.[\w.]{2,}/g, '[e-mail]')
+    .replace(/(?<![A-Za-z0-9])[A-Z0-9]{2}\.[A-Z0-9]{3}\.[A-Z0-9]{3}\/[A-Z0-9]{4}-\d{2}(?!\d)/gi, '[cnpj]')
+    .replace(/(?<!\d)\d{14}(?!\d)/g, '[cnpj]')
+    .replace(/(?<!\d)\d{3}\.\d{3}\.\d{3}-?\d{2}(?!\d)/g, '[cpf]')
+    .replace(/(?<!\d)(?:\+?55[\s-]?)?\(?\d{2}\)?[\s.-]?9[\s.-]?\d{4}[\s.-]?\d{4}(?!\d)/g, '[telefone]')
+    .replace(/(?<!\d)(?:\+?55[\s-]?)?\(?\d{2}\)?[\s.-]?[2-5]\d{3}[\s.-]?\d{4}(?!\d)/g, '[telefone]')
+    .replace(/(?<!\d)\d{11}(?!\d)/g, '[cpf]')
     .slice(0, 1500)
 }

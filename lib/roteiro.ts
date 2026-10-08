@@ -35,17 +35,6 @@ export function proximoPasso(st: Estado, temDocumento: boolean, jaPediuDocumento
 }
 
 /** Encerramento de cada passagem (texto do documento do cliente). null = o modelo escreve. */
-export const ENCERRAMENTO: Record<string, string | null> = {
-  suporte_maquininha: 'Obrigado pelas informações! Seu atendimento foi registrado e vai para um dos nossos especialistas. Você não vai precisar repetir o que já mandou.',
-  estorno_anterior: 'Obrigado pelo envio! Recebemos sua solicitação de cancelamento e ela vai para análise. Se for aprovada, a carta ou o comprovante de cancelamento fica disponível em até 48 horas úteis. Acompanhe o atendimento por aqui.',
-  estorno: 'Obrigado pelas informações! Seu atendimento foi registrado e vai para um dos nossos especialistas. Você não vai precisar repetir o que já mandou.',
-  portal_app: 'Obrigado pelas informações! Seu atendimento foi registrado e vai para um dos nossos especialistas. Você não vai precisar repetir o que já mandou.',
-  pediu_atendente: 'Obrigado! Você está na fila de atendimento e um dos nossos atendentes continua por aqui mesmo.',
-  qualificacao_concluida: 'Obrigado pelas informações! Vou passar seu contato e um resumo da sua operação para o nosso time comercial, que vai olhar o seu caso e te mostrar como o split funcionaria pra você.',
-  pediu_humano: null,
-  outro: null,
-}
-
 const ehNao = (v?: string) => !!v && /^(n[aã]o|nao|anterior|ontem|outro dia)/i.test(v.trim())
 
 const ITENS_CANCELAMENTO = [['comprovante', 'a foto legível do comprovante'], ['data_venda', 'a data da venda'], ['valor_venda', 'o valor da venda']] as const
@@ -75,7 +64,19 @@ export function faltaParaPassar(motivo: string, st: Estado): string | null {
  * que falta, o que a pessoa escreveu em seguida é a resposta dela (o modelo às vezes esquecia de
  * anotar e repetia a pergunta). Devolve o campo e o valor, ou null.
  */
+/** Perguntas do roteiro da maquininha (cliente): a resposta que vem logo depois é anotada pelo código. */
+const PERGUNTAS_MAQUININHA = [
+  { campo: 'estado_maquininha', marca: /liga normalmente|liga mas d[aá] erro|n[aã]o liga\?/i },
+  { campo: 'descricao', marca: /me conta o que est[aá] acontecendo|descrev[ae] (o problema|o que)/i },
+] as const
+
 export function respostaDoRoteiro(st: Estado, ultimaIa: string, textoTurno: string): { campo: string; valor: string } | null {
+  // Cliente, maquininha: a pessoa respondeu a pergunta do roteiro (o modelo às vezes esquecia de anotar
+  // a descrição, a passagem era recusada e ele repetia a pergunta: exame de 08/10/2026)
+  if (st.tipo === 'cliente' && textoTurno.trim()) {
+    const p = PERGUNTAS_MAQUININHA.find(q => !st.dados?.[q.campo] && q.marca.test(ultimaIa))
+    return p ? { campo: p.campo, valor: textoTurno.trim().slice(0, 300) } : null
+  }
   if (st.tipo !== 'nao_cliente' || !textoTurno.trim() || !ultimaIa.includes('?')) return null
   const pergunta = ultimaIa.slice(Math.max(0, ultimaIa.lastIndexOf('?') - 220))
   const falta = PERGUNTAS_COMERCIAL.find(p => !st.dados?.[p.campo])
@@ -98,7 +99,15 @@ const normal = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-
  * (o modelo chegou a anotar "repasse" no turno em que a pessoa só mandou o CNPJ).
  * Palavras comparadas pelo começo (5 letras: "repassa" casa com "repasso"). Puro.
  */
+/**
+ * Valor de "ainda não respondeu" não é resposta. O modelo tentava anotar "não informou",
+ * "a confirmar", "aguardando resposta" e, com isso, pulava a pergunta (exame de 08/10/2026).
+ */
+export const SEM_RESPOSTA = /\b(n[aã]o (foi )?(informou|informado|informada|respondeu|respondido|disse|falou|mencionou|citou)|a (confirmar|definir|verificar)|aguardando|pendente|sem resposta|ainda n[aã]o (respondeu|informou|disse|falou)|desconhecid[oa]|n\/a)\b/i
+
 export function temBaseNoLead(campo: string, valor: string, textoLead: string): boolean {
+  // vale para todo campo: "não informado" no comprovante deixava passar o cancelamento sem os dados
+  if (SEM_RESPOSTA.test(valor)) return false
   if (!CAMPOS_COMERCIAIS.includes(campo)) return true
   const palavras = normal(valor).split(' ').filter(w => w.length >= 3 || /\d/.test(w))
   if (!palavras.length) return false

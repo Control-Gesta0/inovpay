@@ -17,6 +17,14 @@
     },
     "api/central.ts": {
       "maxDuration": 60
+    },
+    "api/base.ts": {
+      "maxDuration": 300,
+      "includeFiles": "prompts/**"
+    },
+    "api/teste.ts": {
+      "maxDuration": 120,
+      "includeFiles": "prompts/**"
     }
   },
   "redirects": [

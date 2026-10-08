@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import type { Textos } from './base-core'
 import { costUsd } from './execlog'
 import type { ChatMsg } from './history'
 import { createBrain } from './llm'
@@ -51,7 +52,7 @@ export interface Relatorio { aprovado: boolean; total: number; reprovados: numbe
 export const GATE_EVAL = 'ia'
 export const HUMANO_EVAL = 'atendimento-humano'
 
-function memoryPort(w: World): Port {
+export function memoryPort(w: World): Port {
   return {
     async documento() { return w.documento },
     async gravarDocumento(v) { w.documento = v; w.log.push(`grava CPF/CNPJ=${v}`) },
@@ -72,6 +73,11 @@ export async function runEvals(opts: {
   judgeModel: string
   filtros?: string[]
   reps?: number
+  /** base candidata: prompt já renderizado e os textos que as ferramentas devolvem */
+  prompt?: string
+  textos?: Partial<Textos>
+  concorrencia?: number
+  onProgresso?: (feitos: number, total: number) => void | Promise<void>
 }): Promise<Relatorio> {
   const openai = new OpenAI({ apiKey: opts.apiKey })
   const lista = opts.cenarios.filter(c => !opts.filtros?.length || opts.filtros.some(f => c.id.includes(f)))
@@ -81,7 +87,7 @@ export async function runEvals(opts: {
   async function rodar(c: Cenario, rodada: number): Promise<ResultadoCenario> {
     const w: World = { documento: c.documento || '', tags: new Set([GATE_EVAL]), notes: [], state: structuredClone(c.state || {}), log: [] }
     const brain = createBrain({
-      apiKey: opts.apiKey, model: opts.model,
+      apiKey: opts.apiKey, model: opts.model, promptOverride: opts.prompt,
       onTool: (nome, input, out) => { w.log.push(`${nome}(${JSON.stringify(input).slice(0, 200)}) → ${out.isError ? 'ERRO ' : ''}${out.content.slice(0, 160)}`) },
     })
     const history: ChatMsg[] = (c.historico || []).map(([dir, text], i) => ({ id: `h${i}`, dir, text, ts: i + 1 }))
@@ -96,7 +102,7 @@ export async function runEvals(opts: {
       const bloco = history.slice(iOut + 1).map(m => m.text).join('\n')
       const avisoForaEnviado = fora && i === 0 && !history.some(m => m.dir === 'out')
       const reply = await brain.generateReply({
-        port: memoryPort(w), gateTag: GATE_EVAL, humanTag: HUMANO_EVAL,
+        port: memoryPort(w), gateTag: GATE_EVAL, humanTag: HUMANO_EVAL, textos: opts.textos,
         foraDoHorario: fora, quandoVolta: fora ? 'na segunda-feira a partir das 9h' : 'hoje a partir das 9h',
       }, {
         nomeContato: c.nomeContato || '', agora, timezone: 'America/Sao_Paulo',
@@ -134,9 +140,19 @@ export async function runEvals(opts: {
   for (const c of lista) for (let r = 1; r <= reps; r++) tarefas.push(() => rodar(c, r).catch(e => ({
     id: c.id, rodada: r, passou: false, nota: 0, falhasCodigo: [`erro: ${e instanceof Error ? e.message : String(e)}`], falhasJuiz: [], conversa: [], log: [],
   })))
-  const LOTE = Number(process.env.EVAL_CONCORRENCIA || 6)
+  // fila com N trabalhadores (um cenário lento não segura o lote inteiro)
+  const LOTE = opts.concorrencia || Number(process.env.EVAL_CONCORRENCIA || 6)
   const resultados: ResultadoCenario[] = []
-  for (let i = 0; i < tarefas.length; i += LOTE) resultados.push(...await Promise.all(tarefas.slice(i, i + LOTE).map(f => f())))
+  let proximo = 0
+  await Promise.all(Array.from({ length: Math.min(LOTE, tarefas.length) }, async () => {
+    while (proximo < tarefas.length) {
+      const r = await tarefas[proximo++]()
+      resultados.push(r)
+      await opts.onProgresso?.(resultados.length, tarefas.length)
+    }
+  }))
+  const ordem = (r: ResultadoCenario) => lista.findIndex(c => c.id === r.id)
+  resultados.sort((a, b) => ordem(a) - ordem(b) || a.rodada - b.rodada)
   const reprovados = resultados.filter(r => !r.passou).length
   return { aprovado: reprovados === 0, total: resultados.length, reprovados, custoUsd: Math.round(custo * 10000) / 10000, modelo: opts.model, resultados }
 }

@@ -1,12 +1,16 @@
 # Central de IA · Assistente virtual (InovPay)
 
-Painel sobre a assistente virtual da InovPay no WhatsApp: saúde, atendimentos,
-passagens para a equipe (com motivo e resumo), funil do GHL e custo. Padrão
-**Central v4.1** da Control Gestão, fase 1 (acompanhar). "Ensinar a IA" pela
-Central é a fase 2.
+Painel sobre a assistente virtual da InovPay no WhatsApp, com a identidade da
+Control Gestão (padrão Central v4.1) em **três abas**:
 
-- Só leitura e **zero tokens**: tudo é calculado em código a partir do diário do
-  agente e do GHL.
+| Aba | Rotas | O que faz |
+|---|---|---|
+| Estatísticas | `/` · `/operacao` · `/resultados` · `/configuracoes` | visão geral, operação, resultados e sistema (subabas) |
+| Teste | `/teste` | laboratório: conversa com a assistente sem tocar no GHL |
+| Base de dados | `/base` | edita os textos; publica só depois do exame automático |
+
+- Estatísticas: só leitura e **zero tokens**, tudo calculado em código a partir do
+  diário do agente e do GHL. Teste e o exame da Base usam o modelo (o custo aparece na tela).
 - **Fail-closed**: sem as fontes, a tela mostra "verificando" ou o erro. Nunca
   mostra "saudável" por falta de dado.
 - O segredo do agente fica só no servidor; o navegador fala com `/api/*`, que
@@ -18,6 +22,8 @@ Central é a fase 2.
 navegador → /api/exec | /api/live | /api/recuperacao   (Central, exige login)
           → AGENT_URL/api/central?recurso=…            (agente, header x-central-secret)
           → Redis (diário de execuções) + GHL (funil, conferência do mapa)
+navegador → /api/base | /api/teste                     (Central, exige login)
+          → AGENT_URL/api/base | /api/teste            (agente, mesmo header)
 ```
 
 O contrato de dados vive em `../lib/central-data.ts` (agente). `lib/types.ts`
@@ -40,8 +46,8 @@ aqui é o espelho: mudou lá, mude aqui.
 
 `CENTRAL_DEMO` fica **vazio** em produção.
 
-4. Smoke: `/login`, depois `/`, `/operacao`, `/resultados`, `/cerebro` e
-   `/configuracoes`. Em **Configurações**, agente e CRM precisam aparecer verdes.
+4. Smoke: `/login`, depois `/`, `/operacao`, `/resultados`, `/configuracoes`
+   (Sistema: agente e CRM verdes), `/teste` (mandar uma mensagem) e `/base`.
 
 ## Rodar local
 

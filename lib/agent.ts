@@ -1,3 +1,5 @@
+import { baseVigente } from './base'
+import { avisoForaDoHorario } from './base-core'
 import { adoptToken, currentToken, debounceAndClaim, releaseLock, renewLock } from './buffer'
 import { CONFIG } from './config'
 import { CRM_MAP } from './crm-map'
@@ -97,6 +99,8 @@ export async function processContact(contactId: string, webhookId: string): Prom
       // A tag de gate voltou depois de uma passagem (a equipe devolveu para a IA): novo ciclo, mantém o tipo
       if (state.finalizado) state = await patchState(contactId, { finalizado: undefined, dados: {} })
 
+      // Base de dados publicada pela Central (textos do portal, encerramentos, aviso): lida a cada turno
+      const base = await baseVigente()
       const agora = new Date()
       const fora = !dentroDoHorario(agora, CONFIG.timezone)
       const volta = quandoVolta(agora, CONFIG.timezone)
@@ -106,10 +110,11 @@ export async function processContact(contactId: string, webhookId: string): Prom
       if (fora) {
         const abre = proximaAbertura(agora, CONFIG.timezone).getTime()
         if (state.avisoForaAte !== abre) {
-          await enviar(contactId, CRM_MAP.textos.foraDoHorario(volta))
+          const aviso = avisoForaDoHorario(base.textos, volta)
+          await enviar(contactId, aviso)
           state = await patchState(contactId, { avisoForaAte: abre })
           avisoForaEnviado = true
-          await logExec({ tipo: 'aviso', leadId: contactId, nome, detalhe: `fora do horário: equipe volta ${volta}`, turnoLead: textoTurno, respostaIA: CRM_MAP.textos.foraDoHorario(volta) })
+          await logExec({ tipo: 'aviso', leadId: contactId, nome, detalhe: `fora do horário: equipe volta ${volta}`, turnoLead: textoTurno, respostaIA: aviso })
         }
       }
 
@@ -125,6 +130,7 @@ export async function processContact(contactId: string, webhookId: string): Prom
         port: ghlPort(contactId, conv.conversationId),
         gateTag: CONFIG.gateTag, humanTag: CONFIG.humanTag,
         foraDoHorario: fora, quandoVolta: volta,
+        prompt: base.prompt, textos: base.textos,
       }
       const reply = await getBrain().generateReply(ctx, {
         nomeContato: nome, agora, timezone: CONFIG.timezone,

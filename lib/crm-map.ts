@@ -20,9 +20,7 @@ export const CRM_MAP = {
   expediente: { inicio: 9, fim: 18 },
 
   textos: {
-    /** enviado pelo CÓDIGO, uma vez por período fora do horário, antes da triagem */
-    foraDoHorario: (quando: string) =>
-      `Olá! Obrigado por entrar em contato com a InovPay. No momento estamos fora do nosso horário de atendimento, que é de segunda a sexta, das 9h às 18h. Já vou adiantando seu atendimento por aqui e a nossa equipe continua ${quando}.`,
+    // o aviso de fora do horário e os encerramentos moram na Base de dados (lib/base-core.ts)
     reset: 'Reset feito. A conversa começa do zero na próxima mensagem.',
     /** a trava barrou duas vezes: sai um texto neutro em vez de algo errado */
     seguro: 'Entendi! Me conta um pouquinho mais, por favor, pra eu te ajudar certinho.',

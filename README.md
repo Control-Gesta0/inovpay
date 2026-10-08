@@ -44,14 +44,30 @@ Lead manda mensagem no WhatsApp
 | `GET /api/validate?secret=…` | prova o mapa contra o GHL vivo. Tem que dar `ok: true` antes de ligar |
 | `GET /api/executions?secret=…&limit=50` | diário: respostas, passagens, erros, custo |
 | `GET /api/central?recurso=execucoes\|live\|recuperacao` | dados da Central (header `x-central-secret: <CENTRAL_SECRET>`). Só leitura, zero tokens |
+| `GET/POST /api/base` | Base de dados da Central: textos que a equipe edita, rascunho, publicar com exame (14 cenários), voltar versão |
+| `GET/POST /api/teste` | laboratório da Central: conversa com a assistente numa porta em memória (nada vai para o GHL) |
 | `GET /painel` | redireciona para a Central |
 
 ## Central de IA (painel)
 
-**https://central-inovpay.vercel.app** · padrão Central v4.1 da Control Gestão, em `central/` (projeto Vercel
-próprio, `central-inovpay`). Visão geral com briefing, operação (agora, passagens com resumo e link do contato,
-histórico auditável, funil do GHL), resultados (triagem, motivos, custo), o roteiro e as travas, e a conferência
-do CRM. Contrato de dados em `lib/central-data.ts`; detalhes em `central/README.md`.
+**https://central-inovpay.vercel.app** · identidade da Control Gestão, padrão Central v4.1, em `central/`
+(projeto Vercel próprio, `central-inovpay`). Três abas:
+
+- **Estatísticas**: visão geral com briefing, operação (agora, passagens com resumo e link do contato,
+  histórico auditável, funil do GHL), resultados (triagem, motivos, custo) e sistema (conferência do CRM).
+- **Teste**: laboratório. Conversa com a assistente de verdade (mesmo cérebro, ferramentas e travas) numa
+  porta em memória; mostra o que mudaria no contato (tags, CPF/CNPJ, anotações, nota). Pode usar os textos
+  no ar ou o rascunho da base. Limite de 300 mensagens por dia.
+- **Base de dados**: os textos que a assistente manda e consulta (portal e app, cancelamento na maquininha,
+  explicação para não cliente, encerramentos, aviso de fora do horário). Edição vai para o rascunho; publicar
+  roda o exame (14 cenários; cenário que falha roda mais 2 vezes e precisa passar nas duas) e só então vale no
+  WhatsApp. Histórico de versões com "voltar para esta".
+
+Como a base funciona: os blocos editáveis estão marcados em `prompts/inovpay.md` com
+`<!-- base:id -->…<!-- /base -->` e os encerramentos/aviso em `lib/base-core.ts`. Sem edição, o prompt
+renderizado é idêntico ao arquivo sem os marcadores (provado em `npm test`). O publicado vive no Redis
+(`base:vigente`, `base:historico`, `base:rascunho`); o atendimento lê a cada turno (cache de 10 s).
+Contrato de dados em `lib/central-data.ts`; detalhes em `central/README.md`.
 
 ## Variáveis de ambiente
 

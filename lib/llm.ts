@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import OpenAI from 'openai'
+import { renderPrompt, trouxeTexto, type ItemId } from './base-core'
 import { CRM_MAP } from './crm-map'
 import { mascarar } from './documento'
 import { addUsage, emptyUsage, type Usage } from './execlog'
@@ -20,13 +21,19 @@ import { buildTools, runTool, type ToolCtx } from './tools'
 export interface LlmOptions {
   apiKey: string
   model: string
-  /** evals: troca o prompt sem deploy */
+  /** evals e laboratório: troca o prompt sem deploy (já renderizado) */
   promptOverride?: string
   onTool?: (name: string, input: Record<string, unknown>, out: { content: string; isError?: boolean }) => void
 }
 
 const fileCache = new Map<string, string>()
 
+/** O prompt com a base padrão (sem os marcadores <!-- base:… -->). */
+export function promptPadrao(): string {
+  return renderPrompt(loadPrompt())
+}
+
+/** O arquivo cru (template com os marcadores da base de dados). */
 export function loadPrompt(rel = 'inovpay.md'): string {
   const hit = fileCache.get(rel)
   if (hit !== undefined) return hit
@@ -79,6 +86,18 @@ export function historyToMessages(history: ChatMsg[]): Msg[] {
   return turns
 }
 
+/** Textos longos da base que não devem sair duas vezes seguidas (a pessoa já recebeu). */
+const TEXTOS_LONGOS: ItemId[] = ['estorno_passos', 'portal_split', 'portal_beneficiarios', 'portal_boleto', 'portal_relatorio', 'portal_comprovante']
+
+/** A última mensagem da IA já trazia este texto da base e a nova traz de novo (laboratório, 08/10/2026). */
+export function repetiuTexto(ctx: Pick<ToolCtx, 'textos' | 'ultimaIa'>, text: string): Violation[] {
+  const tx = ctx.textos
+  const ultima = ctx.ultimaIa || ''
+  if (!tx || !ultima) return []
+  const id = TEXTOS_LONGOS.find(i => tx[i] && trouxeTexto(text, tx[i]!) && trouxeTexto(ultima, tx[i]!))
+  return id ? [{ regra: 'repetiu o mesmo texto', trecho: `${id}: a pessoa acabou de receber; responda o que ela disse agora, sem mandar de novo` }] : []
+}
+
 export function createBrain(opts: LlmOptions) {
   const openai = new OpenAI({ apiKey: opts.apiKey })
 
@@ -110,7 +129,7 @@ export function createBrain(opts: LlmOptions) {
     ].filter(Boolean)
     if (process.env.DEBUG_CTX) console.log(`[ctx]\n${linhas.join('\n')}`)
     return [
-      { role: 'system', content: opts.promptOverride ?? loadPrompt() },
+      { role: 'system', content: opts.promptOverride ?? ctx.prompt ?? promptPadrao() },
       { role: 'system', content: linhas.join('\n') },
     ]
   }
@@ -130,7 +149,8 @@ export function createBrain(opts: LlmOptions) {
   async function enforce(ctx: ToolCtx, messages: Msg[], text: string, usage: Usage, handoff: boolean, textoLead: string): Promise<{ text: string; guard: string[] }> {
     const foraDoHorario = ctx.foraDoHorario
     const tipoDesconhecido = !(await ctx.port.getState()).tipo
-    const v1 = checkReply(text, { foraDoHorario, textoLead, handoff, tipoDesconhecido })
+    const tipoConhecido = !tipoDesconhecido
+    const v1 = [...checkReply(text, { foraDoHorario, textoLead, handoff, tipoDesconhecido, tipoConhecido }), ...repetiuTexto(ctx, text)]
     if (!v1.length) return { text, guard: [] }
     const fix: Msg[] = [
       ...messages,
@@ -139,12 +159,12 @@ export function createBrain(opts: LlmOptions) {
     ]
     const c = await call(fix, null, usage)
     const text2 = (c.message?.content || '').trim()
-    const v2 = checkReply(text2, { foraDoHorario, textoLead, handoff, tipoDesconhecido })
+    const v2 = [...checkReply(text2, { foraDoHorario, textoLead, handoff, tipoDesconhecido, tipoConhecido }), ...repetiuTexto(ctx, text2)]
     if (!v2.length) return { text: text2, guard: v1.map(v => `${v.regra}: ${v.trecho}`) }
     // Só sobrou "mais de uma pergunta": corta as perguntas anteriores em vez de mandar o texto genérico
     if (v2.every(v => v.regra === 'mais de uma pergunta')) {
       const cortado = soUltimaPergunta(text2)
-      if (cortado.length >= 15 && !checkReply(cortado, { foraDoHorario, textoLead, handoff, tipoDesconhecido }).length) {
+      if (cortado.length >= 15 && !checkReply(cortado, { foraDoHorario, textoLead, handoff, tipoDesconhecido, tipoConhecido }).length) {
         return { text: cortado, guard: [...v1.map(v => `${v.regra}: ${v.trecho}`), 'uma pergunta: cortado em código'] }
       }
     }

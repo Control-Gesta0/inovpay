@@ -1,7 +1,8 @@
 import type OpenAI from 'openai'
 import { mascarar, validarDocumento } from './documento'
 import type { Port } from './port'
-import { ENCERRAMENTO, faltaParaPassar, proximoPasso, temBaseNoLead } from './roteiro'
+import { encerramento, type Textos } from './base-core'
+import { faltaParaPassar, proximoPasso, temBaseNoLead } from './roteiro'
 import { tipoDoTurno, tipoPeloTexto } from './tipo'
 import { CAMPOS_ANOTACAO, type CampoAnotacao, type Estado } from './state'
 
@@ -23,6 +24,9 @@ export interface ToolCtx {
   textoTurno?: string
   textoLead?: string
   ultimaIa?: string
+  /** base de dados vigente (ou a candidata, no exame e no laboratório): prompt renderizado e textos */
+  prompt?: string
+  textos?: Partial<Textos>
 }
 
 export interface ToolOut { content: string; isError?: boolean; handoff?: boolean }
@@ -173,7 +177,7 @@ export async function runTool(ctx: ToolCtx, name: string, input: Record<string, 
       const quando = ctx.foraDoHorario
         ? `Agora está FORA do horário: acrescente que a equipe continua ${ctx.quandoVolta}. Não prometa resposta imediata.`
         : 'Está dentro do horário: pode acrescentar que alguém da equipe continua por aqui em breve.'
-      const texto = ENCERRAMENTO[motivo]
+      const texto = encerramento(motivo, ctx.textos || {})
       const como = texto ? `Use EXATAMENTE este encerramento (pode juntar no começo uma frase curta respondendo o que a pessoa acabou de dizer): "${texto}"` : 'Escreva um encerramento curto e simpático, sem pergunta.'
       return { content: `ok: passado para a equipe (nota criada, IA desligada neste contato). ${como} ${quando}`, handoff: true }
     }

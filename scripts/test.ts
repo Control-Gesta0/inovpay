@@ -24,6 +24,9 @@ async function main() {
   eq('CPF repetido', validarDocumento('111.111.111-11'), null)
   eq('CPF com último dígito trocado', validarDocumento('606.607.608-61'), null)
   eq('CNPJ válido', validarDocumento('11.222.333/0001-81')?.formatado, '11.222.333/0001-81')
+  eq('CNPJ com rótulo junto (visto no laboratório)', validarDocumento('CNPJ 11.222.333/0001-81')?.formatado, '11.222.333/0001-81')
+  eq('CPF no meio da frase', validarDocumento('sim, foi hoje. meu cpf é 529.982.247-25')?.tipo, 'cpf')
+  eq('texto sem documento válido', validarDocumento('CNPJ 11.222.333/0001-80'), null)
   eq('CNPJ com ponto no lugar da barra (visto na conversa)', validarDocumento('69.356.674.0001-20')?.tipo ?? 'inválido', validarDocumento('69356674000120')?.tipo ?? 'inválido')
   eq('CNPJ com dígito errado', validarDocumento('11.222.333/0001-82'), null)
   eq('CNPJ alfanumérico (Receita, jul/2026)', validarDocumento('12.ABC.345/01DE-35')?.tipo, 'cnpj')
@@ -207,9 +210,63 @@ async function main() {
   eq('funil na ordem do GHL', fu.funil.map(e => [e.label, e.n, e.parados]), [['Novo Lead', 1, 1], ['Primeiro Contato', 1, 0]])
   eq('ganhas fora das etapas', fu.leads, { total: 3, abertas: 2, ganhas: 1, perdidas: 0, comIA: 2, tagsDisponiveis: true })
   eq('sem follow-up nesta fase', [buildRecovery().ativo, buildRecovery().fila.length], [false, 0])
-  eq('PII mascarada', mascararPII('meu cnpj 12.345.678/0001-95, cpf 52998224725, fone (11) 98765-4321, a@b.com'), 'meu cnpj [cnpj], cpf [cpf], fone [telefone], [e-mail]')
+  eq('PII mascarada', mascararPII('meu cnpj 12.345.678/0001-95, cpf 12345678909, fone (11) 98765-4321, a@b.com'), 'meu cnpj [cnpj], cpf [cpf], fone [telefone], [e-mail]')
+  eq('celular de 11 dígitos vira telefone, não CPF', mascararPII('me liga 11987654321'), 'me liga [telefone]')
+  eq('CPF pontuado e CNPJ alfanumérico', mascararPII('123.456.789-09 e 12.ABC.345/01DE-35'), '[cpf] e [cnpj]')
   eq('CNPJ só números mascarado', mascararPII('12345678000195'), '[cnpj]')
   eq('valor em reais não vira telefone', mascararPII('vendi R$ 1.250,00 ontem'), 'vendi R$ 1.250,00 ontem')
+
+
+  // ---------- Base de dados (núcleo) ----------
+  const bc = await import('../lib/base-core')
+  const { loadPrompt } = await import('../lib/llm')
+  const tpl = loadPrompt()
+  const renderizado = bc.renderPrompt(tpl)
+  const tp = bc.textosPadrao(tpl)
+  eq('prompt renderizado sem marcadores', /<!--|base:/.test(renderizado), false)
+  eq('padrão renderiza igual ao prompt', bc.renderPrompt(tpl, tp) === renderizado, true)
+  eq('todo item tem texto padrão', bc.ITENS.every(i => !!tp[i.id]), true)
+  eq('encerramento citado no prompt = o da ferramenta', [tp.enc_suporte === bc.PADRAO_CODIGO.enc_suporte, tp.enc_estorno_anterior === bc.PADRAO_CODIGO.enc_estorno_anterior], [true, true])
+  eq('textos padrão passam na trava', bc.ITENS.filter(i => bc.validarTexto(i.id, tp[i.id]).length).map(i => i.id), [])
+  const editado = bc.renderPrompt(tpl, { ...tp, portal_split: 'Split novo\nlinha 2', estorno_passos: 'Passo A\nPasso B' })
+  eq('edição entra no prompt', editado.includes('**Split de recebíveis (transferência)**\nSplit novo\nlinha 2\n\n**Cadastro'), true)
+  eq('edição dentro da lista mantém o recuo', editado.includes('"Passo A\n   Passo B"'), true)
+  eq('trava: porcentagem', bc.validarTexto('portal_split', 'Taxa de 1,5% no D+0').length > 0, true)
+  eq('trava: valor em reais', bc.validarTexto('nao_cliente', 'A maquininha custa R$ 699').length > 0, true)
+  eq('trava: travessão', bc.validarTexto('portal_boleto', 'Pague até 23h — no portal').length > 0, true)
+  eq('trava: aviso sem {quando}', bc.validarTexto('aviso_fora', 'Estamos fora do horário.').length > 0, true)
+  eq('trava: encerramento com pergunta', bc.validarTexto('enc_suporte', 'Registrado! Mais alguma coisa?').length > 0, true)
+  eq('trava: vazio', bc.validarTexto('portal_relatorio', '   ').length > 0, true)
+  eq('trava: marcação de sistema', bc.validarTexto('portal_relatorio', 'texto <!-- x -->').length > 0, true)
+  eq('encerramento por motivo', [bc.encerramento('estorno', { enc_suporte: 'X' }), bc.encerramento('pediu_humano', {}), bc.encerramento('qualificacao_concluida', {})?.slice(0, 8)], ['X', null, 'Obrigado'])
+  eq('aviso com quando', bc.avisoForaDoHorario({ aviso_fora: 'Volta {quando}.' }, 'amanhã'), 'Volta amanhã.')
+  eq('mesclar ignora id desconhecido', 'xyz' in bc.mesclar(tp, { xyz: 'a' } as never), false)
+  eq('exame vê texto novo', [bc.trouxeTexto('Oi! Split novo: crie até 22h no portal', 'Split novo, crie até 22h no portal'), bc.trouxeTexto('Crie até 23h no portal antigo', 'Split novo com horário diferente e caminho inédito')], [true, false])
+
+
+  // ---------- Anotação sem resposta (exame de 08/10/2026) ----------
+  const rt = await import('../lib/roteiro')
+  const leadCom = 'não sou cliente\ntenho uma clínica e repasso pras profissionais\numas 4 profissionais'
+  eq('"não informou" não vira resposta', rt.temBaseNoLead('bitributacao', 'não informou', leadCom), false)
+  eq('"a confirmar" não vira resposta', rt.temBaseNoLead('volume_mensal', 'a confirmar', leadCom), false)
+  eq('"aguardando resposta" não vira resposta', rt.temBaseNoLead('volume_mensal', 'aguardando resposta', leadCom), false)
+  eq('"não informado" também não vale no cancelamento', [rt.temBaseNoLead('comprovante', 'não informado', leadCom), rt.temBaseNoLead('data_venda', 'a confirmar', leadCom), rt.temBaseNoLead('valor_venda', 'R$ 350', leadCom)], [false, false, true])
+  eq('resposta de verdade continua entrando', rt.temBaseNoLead('recebedores', 'umas 4 profissionais', leadCom), true)
+  eq('"não sei" é resposta', rt.temBaseNoLead('bitributacao', 'não sei', leadCom + '\nnão sei'), true)
+
+  eq('maquininha: descrição anotada pelo código', rt.respostaDoRoteiro({ tipo: 'cliente', dados: { assunto: 'maquininha', estado_maquininha: 'liga mas dá erro' } }, 'Em poucas palavras, me conta o que está acontecendo com a sua maquininha. Se puder, manda uma foto ou um vídeo mostrando o problema.', 'erro de comunicação\n[imagem do lead]: tela com erro'), { campo: 'descricao', valor: 'erro de comunicação\n[imagem do lead]: tela com erro' })
+  eq('maquininha: estado anotado pelo código', rt.respostaDoRoteiro({ tipo: 'cliente', dados: { assunto: 'maquininha' } }, 'A maquininha liga normalmente, liga mas dá erro, ou não liga?', 'não liga'), { campo: 'estado_maquininha', valor: 'não liga' })
+  eq('maquininha: não reescreve o que já está anotado', rt.respostaDoRoteiro({ tipo: 'cliente', dados: { descricao: 'x', estado_maquininha: 'y' } }, 'me conta o que está acontecendo', 'outra coisa'), null)
+
+  // ---------- Não pergunta de novo se é cliente ----------
+  const gd = await import('../lib/guards')
+  eq('tipo conhecido: perguntar de novo é trava', gd.checkReply('Oi! Você já é cliente da InovPay?', { tipoConhecido: true }).map(v => v.regra), ['perguntou de novo se é cliente'])
+  eq('tipo desconhecido: perguntar é o certo', gd.checkReply('Oi! Você já é cliente da InovPay?', { tipoDesconhecido: true }).length, 0)
+
+  // ---------- Não repete o texto longo da base ----------
+  const { repetiuTexto } = await import('../lib/llm')
+  eq('repetiu o passo a passo: trava', repetiuTexto({ textos: tp, ultimaIa: tp.estorno_passos + '\nConseguiu concluir?' }, tp.estorno_passos).length, 1)
+  eq('primeira vez: sem trava', repetiuTexto({ textos: tp, ultimaIa: 'O estorno é de uma venda feita hoje?' }, tp.estorno_passos).length, 0)
 
   console.log(falhas ? `\n❌ ${falhas} falha(s)` : '\n✅ tudo certo')
   process.exit(falhas ? 1 : 0)
