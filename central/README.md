@@ -1,7 +1,7 @@
 # Central de IA · Assistente virtual (InovPay)
 
 Painel sobre a assistente virtual da InovPay no WhatsApp, com a identidade da
-Control Gestão (padrão Central v4.1) em **quatro abas**:
+Control Gestão (padrão Central v5) em **quatro abas**:
 
 | Aba | Rotas | O que faz |
 |---|---|---|
