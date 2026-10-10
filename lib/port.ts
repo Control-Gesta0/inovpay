@@ -1,6 +1,7 @@
 import { CONFIG } from './config'
 import { CRM_MAP } from './crm-map'
-import { addContactNote, addContactTags, contactTags, customValue, getContact, marcarNaoLida, removeContactTags, updateContactFields } from './ghl'
+import { garantirCardSuporte } from './card-suporte'
+import { addContactNote, addContactTags, contactName, contactTags, customValue, getContact, marcarNaoLida, removeContactTags, updateContactFields } from './ghl'
 import { getState, patchState, type Estado } from './state'
 
 /**
@@ -16,6 +17,8 @@ export interface Port {
   removeTags(tags: string[]): Promise<void>
   addNote(body: string): Promise<void>
   marcarNaoLida(): Promise<void>
+  /** garante o card no funil de suporte; devolve o que aconteceu (vai para o diário) */
+  cardSuporte(motivo: string): Promise<string>
   getState(): Promise<Estado>
   patchState(p: Partial<Estado>): Promise<Estado>
 }
@@ -33,6 +36,7 @@ export function ghlPort(contactId: string, conversationId: string | null): Port 
     },
     async addNote(body) { await addContactNote(contactId, body) },
     async marcarNaoLida() { await marcarNaoLida(conversationId) },
+    async cardSuporte(motivo) { return garantirCardSuporte(contactId, contactName(await getContact(contactId)), motivo) },
     getState: () => getState(contactId),
     patchState: p => patchState(contactId, p),
   }

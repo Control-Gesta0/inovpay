@@ -217,6 +217,12 @@ export default function Teste() {
                   {sessao.mundo.notes[0] && <pre className="mt-2 text-[11px] text-body-mid whitespace-pre-wrap break-words font-space">{sessao.mundo.notes[0]}</pre>}
                 </div>
               )}
+              {(sessao?.mundo.cards || []).map((c, i) => (
+                <div key={i} className="rounded-[8px] border border-cyan/30 bg-cyan/[0.05] p-3">
+                  <div className="font-mono text-[9px] tracking-[0.1em] text-cyan">CARD NO FUNIL SUPORTE INOVPAY</div>
+                  <p className="text-[11.5px] text-ink mt-1.5">{c} · etapa &quot;Entrou no suporte&quot;</p>
+                </div>
+              ))}
             </div>
           </section>
           <p className="text-[10.5px] text-body-faint leading-relaxed px-1">

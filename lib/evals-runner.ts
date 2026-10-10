@@ -19,6 +19,8 @@ export interface World {
   notes: string[]
   state: Estado
   log: string[]
+  /** cards de suporte que a IA garantiu (no laboratório aparece em "O que mudaria no contato") */
+  cards?: string[]
 }
 
 export interface Turno { lead: string; resposta: string; tools: string[]; guard: string[]; handoff: boolean }
@@ -61,6 +63,7 @@ export function memoryPort(w: World): Port {
     async removeTags(t) { t.forEach(x => w.tags.delete(x.toLowerCase())); w.log.push(`tags - ${t.join(',')}`) },
     async addNote(n) { w.notes.push(n); w.log.push(`nota: ${n.replace(/\n/g, ' | ').slice(0, 300)}`) },
     async marcarNaoLida() { w.log.push('conversa marcada como não lida') },
+    async cardSuporte(motivo) { (w.cards ||= []).push(motivo); w.log.push(`card de suporte: ${motivo}`); return `card: criado (simulado) · ${motivo}` },
     async getState() { return structuredClone(w.state) },
     async patchState(p) { Object.assign(w.state, p); return structuredClone(w.state) },
   }

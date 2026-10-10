@@ -13,6 +13,14 @@ export const CRM_MAP = {
    */
   pipeline: { id: 'd8cxey6LPExYI33I9JpF', nome: 'Novos Leads InovPay' },
 
+  /**
+   * Funil de suporte (pedido do cliente em 10/10/2026): na passagem de um cliente
+   * para o suporte a IA garante um card na entrada; a equipe move e preenche
+   * "Número do chamado" e "Parceiro" no card. Achado pelo NOME (lib/card-suporte.ts):
+   * enquanto não existir no GHL, a passagem segue sem card.
+   */
+  funilSuporte: { nome: 'Suporte InovPay', entrada: 'Entrou no suporte', final: 'Finalizado' },
+
   /** tag que a automação antiga colocava em todo contato atendido (preservada) */
   tagEmContato: 'em contato',
 

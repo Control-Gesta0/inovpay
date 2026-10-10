@@ -315,7 +315,7 @@ function Equipe() {
             </div>
           ))}
         </div>
-        <div className="grid md:grid-cols-3 gap-3 mt-3">
+        <div className="grid md:grid-cols-2 gap-3 mt-3">
           {ACOES.map(a => (
             <div key={a.titulo} className="panel p-5">
               <h3 className="text-[13.5px] font-medium text-ink">{a.titulo}</h3>

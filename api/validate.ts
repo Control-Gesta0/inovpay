@@ -30,6 +30,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try { add('redis', (await redis.ping()) === 'PONG', `prefixo ${CONFIG.redisPrefix}`) } catch (e) { add('redis', false, e instanceof Error ? e.message : String(e)) }
   try { add('prompt no bundle', loadPrompt().length > 1000, `${loadPrompt().length} caracteres`) } catch (e) { add('prompt no bundle', false, e instanceof Error ? e.message : String(e)) }
   add('gate', !!CONFIG.gateTag, `tag "${CONFIG.gateTag}", modo ${CONFIG.modoGate}`)
+  try {
+    const r = await ghl<{ pipelines: Array<{ id: string; name: string; stages: Array<{ id: string; name: string }> }> }>('GET', `/opportunities/pipelines?locationId=${encodeURIComponent(CONFIG.ghlLocationId)}`)
+    const cfg = CRM_MAP.funilSuporte
+    const n = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+    const p = (r.pipelines || []).find(x => n(x.name) === n(cfg.nome))
+    const etapas = p?.stages.map(s => s.name) || []
+    const faltam = [cfg.entrada, cfg.final].filter(e => !etapas.some(x => n(x) === n(e)))
+    add(`funil "${cfg.nome}" (card de suporte)`, !!p && !faltam.length, !p ? 'ainda não existe no GHL: a passagem segue sem card' : faltam.length ? `faltam as etapas: ${faltam.join(', ')}` : etapas.join(' → '))
+  } catch (e) { add('funil de suporte', false, e instanceof Error ? e.message : String(e)) }
   add('contatos de teste para reset', CONFIG.resetPhones.length + CONFIG.testContactIds.length > 0, `${CONFIG.resetPhones.length} telefone(s), ${CONFIG.testContactIds.length} id(s)`)
 
   const ok = checks.every(c => c.ok)

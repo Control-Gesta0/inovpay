@@ -230,6 +230,7 @@ export function createBrain(opts: LlmOptions) {
           const out = await runTool(ctx, tc.function.name, input)
           opts.onTool?.(tc.function.name, input, out)
           if (out.handoff) handoff = true
+          for (const m of out.marcas || []) toolsUsed.push(m)
           if (out.isError) console.warn(`[tool:${tc.function.name}] ${out.content}`)
           messages.push({ role: 'tool', tool_call_id: tc.id, content: out.content || '(sem retorno)' })
         }

@@ -15,7 +15,7 @@ export const PASSOS: Passo[] = [
   },
   {
     titulo: 'Atenda o que ela passou',
-    texto: 'No GHL, abra as conversas não lidas ou filtre pela tag atendimento-humano. Leia a nota interna antes de responder: o cliente já contou o caso e não precisa repetir.',
+    texto: 'Cada cliente que vai para o suporte ganha um card no funil Suporte InovPay, em "Entrou no suporte". Ao pegar o caso, mova para "Em atendimento"; se abrir chamado num parceiro, preencha no card o Número do chamado e o Parceiro; ao resolver, mova para "Finalizado". Leia a nota interna antes de responder: o cliente já contou o caso e não precisa repetir.',
     href: '/operacao?aba=passagens', acao: 'Ver passagens',
   },
   {
@@ -86,6 +86,7 @@ export const PASSAGEM = [
   'Coloca a tag atendimento-humano.',
   'Tira a tag ia: daqui em diante quem responde é a equipe.',
   'Deixa a conversa como não lida, para aparecer para vocês.',
+  'Cliente indo para o suporte: abre um card no funil Suporte InovPay, em "Entrou no suporte" (se ele já tem um card aberto, usa o mesmo). Comercial não ganha card aqui.',
 ]
 
 /** Travas em código: valem mesmo que o modelo tente o contrário (as de quando ela fica quieta ou passa na hora já estão no fluxo). */
@@ -114,6 +115,7 @@ export const TAGS = [
 export const ACOES = [
   { titulo: 'Tirar a assistente de um contato', texto: 'Coloque a tag atendimento-humano. Ela para de responder na hora.' },
   { titulo: 'Devolver um contato para a assistente', texto: 'Tire a tag atendimento-humano e coloque a tag ia. Ela começa um atendimento novo, sem perguntar de novo se é cliente.' },
+  { titulo: 'Funil de suporte', texto: 'A assistente só cria o card. Quem move é a equipe: Em atendimento ao pegar o caso, Finalizado ao resolver. Número do chamado e Parceiro ficam no card, para saber onde consultar.' },
   { titulo: 'Feriado', texto: 'A assistente não sabe quando é feriado: num feriado de dia útil ela age como num dia normal. Avise a Control Gestão com antecedência para ajustar o aviso.' },
 ]
 

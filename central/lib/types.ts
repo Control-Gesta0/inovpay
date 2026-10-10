@@ -171,7 +171,7 @@ export interface TesteSessao {
   criadoEm: string
   opcoes: TesteOpcoes
   history: Array<{ id: string; dir: 'in' | 'out'; text: string; ts: number }>
-  mundo: { documento: string; tags: string[]; notes: string[]; state: { tipo?: 'cliente' | 'nao_cliente'; dados?: Record<string, string>; finalizado?: { motivo: string; em: string; resumo: string } } }
+  mundo: { documento: string; tags: string[]; notes: string[]; state: { tipo?: 'cliente' | 'nao_cliente'; dados?: Record<string, string>; finalizado?: { motivo: string; em: string; resumo: string } }; cards?: string[] }
   detalhes: Record<string, { tools: string[]; log: string[]; guard: string[]; ms: number; custoUsd: number; handoff: boolean }>
   turnos: number
   custoUsd: number

@@ -2,6 +2,7 @@ import type OpenAI from 'openai'
 import { mascarar, validarDocumento } from './documento'
 import type { Port } from './port'
 import { encerramento, type Textos } from './base-core'
+import { precisaCard } from './card-suporte'
 import { faltaParaPassar, proximoPasso, temBaseNoLead } from './roteiro'
 import { tipoDoTurno, tipoPeloTexto } from './tipo'
 import { CAMPOS_ANOTACAO, type CampoAnotacao, type Estado } from './state'
@@ -29,7 +30,8 @@ export interface ToolCtx {
   textos?: Partial<Textos>
 }
 
-export interface ToolOut { content: string; isError?: boolean; handoff?: boolean }
+/** `marcas`: o que a ferramenta fez fora da conversa e vale registrar no diário (ex.: "card: criado…") */
+export interface ToolOut { content: string; isError?: boolean; handoff?: boolean; marcas?: string[] }
 
 export const MOTIVOS = ['suporte_maquininha', 'estorno', 'estorno_anterior', 'portal_app', 'pediu_atendente', 'qualificacao_concluida', 'pediu_humano', 'outro'] as const
 type Motivo = typeof MOTIVOS[number]
@@ -173,13 +175,22 @@ export async function runTool(ctx: ToolCtx, name: string, input: Record<string, 
       await ctx.port.addTags([ctx.humanTag])
       await ctx.port.removeTags([ctx.gateTag])
       try { await ctx.port.marcarNaoLida() } catch (e) { console.warn('[tools] não marquei a conversa como não lida:', e instanceof Error ? e.message : e) }
+      // card no funil de suporte (cliente indo para o suporte): falha aqui nunca derruba a passagem
+      const marcas: string[] = []
+      if (precisaCard(motivo, st.tipo)) {
+        try { marcas.push(await ctx.port.cardSuporte(ROTULO_MOTIVO[motivo] || motivo)) } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          console.warn('[tools] card de suporte falhou:', msg)
+          marcas.push(`card: falhou (${msg.slice(0, 120)})`)
+        }
+      }
       await ctx.port.patchState({ finalizado: { motivo, resumo: resumo.slice(0, 500), em: new Date().toISOString() } })
       const quando = ctx.foraDoHorario
         ? `Agora está FORA do horário: acrescente que a equipe continua ${ctx.quandoVolta}. Não prometa resposta imediata.`
         : 'Está dentro do horário: pode acrescentar que alguém da equipe continua por aqui em breve.'
       const texto = encerramento(motivo, ctx.textos || {})
       const como = texto ? `Use EXATAMENTE este encerramento (pode juntar no começo uma frase curta respondendo o que a pessoa acabou de dizer): "${texto}"` : 'Escreva um encerramento curto e simpático, sem pergunta.'
-      return { content: `ok: passado para a equipe (nota criada, IA desligada neste contato). ${como} ${quando}`, handoff: true }
+      return { content: `ok: passado para a equipe (nota criada, IA desligada neste contato). ${como} ${quando}`, handoff: true, marcas }
     }
 
     return { content: `ferramenta desconhecida: ${name}`, isError: true }

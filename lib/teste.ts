@@ -30,7 +30,7 @@ export interface Sessao {
   opcoes: Opcoes
   history: ChatMsg[]
   /** o que aconteceria no GHL */
-  mundo: { documento: string; tags: string[]; notes: string[]; state: World['state'] }
+  mundo: { documento: string; tags: string[]; notes: string[]; state: World['state']; cards?: string[] }
   detalhes: Record<string, Detalhe>
   turnos: number
   custoUsd: number
@@ -107,7 +107,7 @@ export async function falar(id: string, texto: string): Promise<{ sessao?: Sessa
       avisoForaEnviado = true
     }
 
-    const w: World = { documento: s.mundo.documento, tags: new Set(s.mundo.tags), notes: [...s.mundo.notes], state: s.mundo.state, log: [] }
+    const w: World = { documento: s.mundo.documento, tags: new Set(s.mundo.tags), notes: [...s.mundo.notes], state: s.mundo.state, log: [], cards: [...(s.mundo.cards || [])] }
     const brain = createBrain({
       apiKey: CONFIG.openaiApiKey, model: CONFIG.llmModel, promptOverride: prompt,
       onTool: (nome, input, out) => { w.log.push(`${nome}(${JSON.stringify(input).slice(0, 300)}) → ${out.isError ? 'NÃO FEZ: ' : ''}${out.content.slice(0, 220)}`) },
@@ -127,7 +127,7 @@ export async function falar(id: string, texto: string): Promise<{ sessao?: Sessa
     const rid = `r${s.history.length}`
     s.history.push({ id: rid, dir: 'out', text: resposta, ts: Date.now() })
     s.detalhes[rid] = { tools: reply?.toolsUsed || [], log: w.log, guard: reply?.guard || [], ms: Date.now() - t0, custoUsd: custo, handoff: !!reply?.handoff }
-    s.mundo = { documento: w.documento, tags: [...w.tags], notes: w.notes, state: w.state }
+    s.mundo = { documento: w.documento, tags: [...w.tags], notes: w.notes, state: w.state, cards: w.cards || [] }
     s.turnos++
     s.custoUsd = Math.round((s.custoUsd + custo) * 1e6) / 1e6
     await redis.set(K(id), s, { ex: TTL })
