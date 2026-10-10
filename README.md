@@ -32,7 +32,7 @@ Lead manda mensagem no WhatsApp
 
 **Passagem para a equipe** (`passar_para_humano`): nota interna com resumo e dados coletados, tag `atendimento-humano`, tira a tag `ia` e marca a conversa como não lida. A IA para de responder esse contato.
 
-**Reset de teste:** de um número em `RESET_PHONES`, mande `reset` no WhatsApp. Ou chame `POST /api/reset?secret=…&phone=11999999999`. Tira `atendimento-humano` e `em contato`, coloca `ia`, limpa o CPF/CNPJ, apaga a memória e grava o corte do histórico. A conversa no GHL não é apagada, porque conversa recriada faz o gatilho falhar na primeira mensagem.
+**Reset de teste:** de um número em `RESET_PHONES`, mande `reset` no WhatsApp. Ou chame `POST /api/reset?secret=…&phone=11999999999`. Tira `atendimento-humano` (a tag `em contato` fica: o bot antigo só dispara para quem não tem `em contato`, então ele não responde junto com a IA nos testes), coloca `ia`, limpa o CPF/CNPJ, apaga a memória e grava o corte do histórico. A conversa no GHL não é apagada, porque conversa recriada faz o gatilho falhar na primeira mensagem.
 
 ## Endpoints
 

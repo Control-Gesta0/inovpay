@@ -139,7 +139,7 @@ async function main() {
   eq('sexta 19h abre segunda 9h', proximaAbertura(d('2026-10-09T19:00:00-03:00')).toISOString(), '2026-10-12T12:00:00.000Z')
 
   // ---------- Reset ----------
-  const { ehComandoReset, podeResetar } = await import('../lib/reset')
+  const { ehComandoReset, podeResetar, tagsDoReset } = await import('../lib/reset')
   eq('"reset"', ehComandoReset(' Reset '), true)
   eq('"#reset"', ehComandoReset('#reset'), true)
   eq('frase com reset não é comando', ehComandoReset('preciso dar reset na maquininha'), false)
@@ -147,6 +147,8 @@ async function main() {
   eq('reset por telefone de teste (+55)', podeResetar({ id: 'x', phone: '+5511999990000' }, cfg), true)
   eq('reset por id de teste', podeResetar({ id: 'c-teste', phone: '' }, cfg), true)
   eq('cliente comum não reseta', podeResetar({ id: 'y', phone: '+5511988887777' }, cfg), false)
+  eq('reset tira atendimento-humano e mantém "em contato" (o bot antigo não pega o contato de teste)', tagsDoReset(['em contato', 'Atendimento-Humano', 'ia'], 'atendimento-humano'), ['atendimento-humano'])
+  eq('reset sem passagem não tira nada', tagsDoReset(['em contato'], 'atendimento-humano'), [])
 
   // ---------- Nota da passagem ----------
   const { montarNota } = await import('../lib/tools')

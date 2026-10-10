@@ -5,7 +5,10 @@ import { k, redis } from './redis'
 
 /**
  * RESET de teste: deixa o contato como se nunca tivesse falado com a IA.
- *  1. tira as tags que a IA coloca (atendimento-humano, em contato)
+ *  1. tira a tag de passagem (atendimento-humano). A tag "em contato" FICA: o
+ *     bot antigo ("1- Suporte - WhatsApp Bot") só dispara para quem NÃO tem
+ *     "em contato", então mantê-la impede o bot de responder junto com a IA
+ *     durante os testes (a IA não usa essa tag para decidir nada)
  *  2. põe a tag de gate (ia) de volta
  *  3. limpa o campo CPF/CNPJ (para testar a pergunta do documento)
  *  4. apaga a memória da IA no Redis
@@ -35,15 +38,20 @@ export function podeResetar(c: Pick<GhlContact, 'id' | 'phone'>, cfg = { ids: CO
 export const chavesDoContato = (contactId: string) =>
   ['state', 'done', 'token', 'lock', 'rl'].map(p => k(p, contactId))
 
+/** Tags que o reset tira: só a da passagem ("em contato" fica, ver acima). */
+export function tagsDoReset(atuais: string[], humanTag = CONFIG.humanTag): string[] {
+  return atuais.map(t => t.toLowerCase()).includes(humanTag) ? [humanTag] : []
+}
+
 export async function resetar(contactId: string): Promise<string> {
   const c = await getContact(contactId)
   const atuais = contactTags(c).map(t => t.toLowerCase())
-  const tirar = [CONFIG.humanTag, CRM_MAP.tagEmContato].filter(t => atuais.includes(t))
+  const tirar = tagsDoReset(atuais)
   if (tirar.length) await removeContactTags(contactId, tirar)
   if (CONFIG.gateTag && !atuais.includes(CONFIG.gateTag)) await addContactTags(contactId, [CONFIG.gateTag])
   await updateContactFields(contactId, [{ id: CRM_MAP.campoDocumento.id, value: '' }])
   await redis.del(...chavesDoContato(contactId))
   // +1s: a confirmação do reset (enviada antes) também fica fora do histórico
   await redis.set(k('corte', contactId), String(Date.now() + 1000), { ex: 365 * 86400 })
-  return `reset: tags tiradas [${tirar.join(', ') || 'nenhuma'}], tag "${CONFIG.gateTag}" colocada, CPF/CNPJ limpo, memória e histórico zerados`
+  return `reset: tags tiradas [${tirar.join(', ') || 'nenhuma'}], tag "${CONFIG.gateTag}" colocada${atuais.includes(CRM_MAP.tagEmContato) ? `, "${CRM_MAP.tagEmContato}" mantida` : ''}, CPF/CNPJ limpo, memória e histórico zerados`
 }
