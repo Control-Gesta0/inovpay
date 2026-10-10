@@ -11,7 +11,7 @@ import { abrirPergunta } from '@/lib/pergunta'
 export const NOME_CLIENTE = 'InovPay'
 /** a assistente virtual da InovPay no WhatsApp (feminino nos textos: "a assistente") */
 export const NOME_AGENTE = 'Assistente virtual'
-export const SISTEMA_VERSAO = 'CENTRAL V4.1 · 4 ABAS'
+export const SISTEMA_VERSAO = 'CENTRAL V5 · 4 ABAS'
 
 const ESTATISTICAS = ['/', '/operacao', '/resultados', '/configuracoes']
 

@@ -50,7 +50,7 @@ Lead manda mensagem no WhatsApp
 
 ## Central de IA (painel)
 
-**https://central-inovpay.vercel.app** · identidade da Control Gestão, padrão Central v4.1, em `central/`
+**https://central-inovpay.vercel.app** · identidade da Control Gestão, padrão Central v5, em `central/`
 (projeto Vercel próprio, `central-inovpay`). Quatro abas:
 
 - **Estatísticas**: visão geral (veredito, o que pede decisão e quatro números de hoje), operação (agora,
