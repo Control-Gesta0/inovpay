@@ -21,6 +21,9 @@ export const CRM_MAP = {
    */
   funilSuporte: { nome: 'Suporte InovPay', entrada: 'Entrou no suporte', final: 'Finalizado' },
 
+  /** Não cliente qualificado (pedido de 11/10/2026): card no funil comercial, etapa de entrada. Sem etapa final: qualquer card aberto do contato é reaproveitado. */
+  funilComercial: { nome: 'Novos Leads InovPay', entrada: 'Novo Lead', final: '' },
+
   /** tag que a automação antiga colocava em todo contato atendido (preservada) */
   tagEmContato: 'em contato',
 

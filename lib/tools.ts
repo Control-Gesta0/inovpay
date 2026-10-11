@@ -2,7 +2,7 @@ import type OpenAI from 'openai'
 import { mascarar, validarDocumento } from './documento'
 import type { Port } from './port'
 import { encerramento, type Textos } from './base-core'
-import { precisaCard } from './card-suporte'
+import { qualFunil } from './card-suporte'
 import { faltaParaPassar, proximoPasso, temBaseNoLead } from './roteiro'
 import { tipoDoTurno, tipoPeloTexto } from './tipo'
 import { CAMPOS_ANOTACAO, type CampoAnotacao, type Estado } from './state'
@@ -175,12 +175,13 @@ export async function runTool(ctx: ToolCtx, name: string, input: Record<string, 
       await ctx.port.addTags([ctx.humanTag])
       await ctx.port.removeTags([ctx.gateTag])
       try { await ctx.port.marcarNaoLida() } catch (e) { console.warn('[tools] não marquei a conversa como não lida:', e instanceof Error ? e.message : e) }
-      // card no funil de suporte (cliente indo para o suporte): falha aqui nunca derruba a passagem
+      // card no funil (cliente → Suporte InovPay; não cliente qualificado → Novos Leads InovPay): falha aqui nunca derruba a passagem
       const marcas: string[] = []
-      if (precisaCard(motivo, st.tipo)) {
-        try { marcas.push(await ctx.port.cardSuporte(ROTULO_MOTIVO[motivo] || motivo)) } catch (e) {
+      const funil = qualFunil(motivo, st.tipo)
+      if (funil) {
+        try { marcas.push(await ctx.port.card(funil, ROTULO_MOTIVO[motivo] || motivo)) } catch (e) {
           const msg = e instanceof Error ? e.message : String(e)
-          console.warn('[tools] card de suporte falhou:', msg)
+          console.warn('[tools] card falhou:', msg)
           marcas.push(`card: falhou (${msg.slice(0, 120)})`)
         }
       }

@@ -219,8 +219,8 @@ export default function Teste() {
               )}
               {(sessao?.mundo.cards || []).map((c, i) => (
                 <div key={i} className="rounded-[8px] border border-cyan/30 bg-cyan/[0.05] p-3">
-                  <div className="font-mono text-[9px] tracking-[0.1em] text-cyan">CARD NO FUNIL SUPORTE INOVPAY</div>
-                  <p className="text-[11.5px] text-ink mt-1.5">{c} · etapa &quot;Entrou no suporte&quot;</p>
+                  <div className="font-mono text-[9px] tracking-[0.1em] text-cyan">CARD NO FUNIL (ENTRADA)</div>
+                  <p className="text-[11.5px] text-ink mt-1.5">{c}</p>
                 </div>
               ))}
             </div>

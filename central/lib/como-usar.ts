@@ -86,7 +86,7 @@ export const PASSAGEM = [
   'Coloca a tag atendimento-humano.',
   'Tira a tag ia: daqui em diante quem responde é a equipe.',
   'Deixa a conversa como não lida, para aparecer para vocês.',
-  'Cliente indo para o suporte: abre um card no funil Suporte InovPay, em "Entrou no suporte" (se ele já tem um card aberto, usa o mesmo). Comercial não ganha card aqui.',
+  'Abre um card: cliente indo para o suporte vai para o funil Suporte InovPay, em "Entrou no suporte"; não cliente qualificado vai para Novos Leads InovPay, em "Novo Lead". Se o contato já tem um card aberto no funil, usa o mesmo.',
 ]
 
 /** Travas em código: valem mesmo que o modelo tente o contrário (as de quando ela fica quieta ou passa na hora já estão no fluxo). */

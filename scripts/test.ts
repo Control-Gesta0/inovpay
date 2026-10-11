@@ -316,7 +316,7 @@ async function main() {
   // ---------- Card no funil de suporte (pedido do cliente, 10/10/2026) ----------
   const cs = await import('../lib/card-suporte')
   eq('card: cliente indo para o suporte ganha card', ['suporte_maquininha', 'estorno', 'estorno_anterior', 'portal_app', 'pediu_atendente'].map(m => cs.precisaCard(m, 'cliente')), [true, true, true, true, true])
-  eq('card: comercial e "outro" não ganham card', [cs.precisaCard('qualificacao_concluida', 'nao_cliente'), cs.precisaCard('outro', 'cliente')], [false, false])
+  eq('card: comercial qualificado vai para o funil comercial; "outro" não ganha card', [cs.qualFunil('qualificacao_concluida', 'nao_cliente'), cs.qualFunil('outro', 'cliente'), cs.qualFunil('pediu_humano', 'nao_cliente')], ['comercial', null, null])
   eq('card: "pediu uma pessoa" só se for cliente', [cs.precisaCard('pediu_humano', 'cliente'), cs.precisaCard('pediu_humano', 'nao_cliente'), cs.precisaCard('pediu_humano', undefined)], [true, false, false])
   eq('card: nenhum aberto → cria', cs.decidirCard([], 'fim'), { acao: 'criar' })
   eq('card: um aberto → reaproveita (não duplica)', cs.decidirCard([{ id: 'a', pipelineStageId: 'entrada' }], 'fim'), { acao: 'reaproveitar', id: 'a' })
@@ -329,6 +329,7 @@ async function main() {
   ]
   eq('card: acha o funil e as etapas pelo nome (sem ligar para maiúscula)', cs.acharFunil(funis), { pipelineId: 'p2', entradaId: 'e1', finalId: 'e3' })
   eq('card: funil ainda não criado → sem card', cs.acharFunil([funis[0]]), null)
+  eq('card comercial: entra em Novo Lead e qualquer card aberto é reaproveitado', [cs.acharFunil(funis, { nome: 'Novos Leads InovPay', entrada: 'Novo Lead', final: '' }), cs.decidirCard([{ id: 'x', pipelineStageId: 's9' }], '')], [{ pipelineId: 'p1', entradaId: 's1', finalId: '' }, { acao: 'reaproveitar', id: 'x' }])
   const tl = await import('../lib/tools')
   const ev = await import('../lib/evals-runner')
   const mundoCard = (tipo: 'cliente' | 'nao_cliente', dados: Record<string, string> = { assunto: 'maquininha', maquininha_liga: 'não liga', descricao: 'não acende' }): import('../lib/evals-runner').World =>
@@ -336,12 +337,12 @@ async function main() {
   const ctxDe = (w: import('../lib/evals-runner').World, port = ev.memoryPort(w)) => ({ port, gateTag: 'ia', humanTag: 'atendimento-humano', foraDoHorario: false, quandoVolta: '', textos: {} })
   const w1 = mundoCard('cliente')
   const o1 = await tl.runTool(ctxDe(w1), 'passar_para_humano', { motivo: 'suporte_maquininha', resumo: 'Maquininha não liga.' })
-  eq('passagem de suporte cria o card e registra no diário', [o1.handoff, w1.cards, (o1.marcas || []).length], [true, ['Suporte · maquininha'], 1])
+  eq('passagem de suporte cria o card e registra no diário', [o1.handoff, w1.cards, (o1.marcas || []).length], [true, ['Suporte InovPay · Suporte · maquininha'], 1])
   const w2 = mundoCard('nao_cliente', { repasse: 'a', forma_repasse: 'b', quantidade: '3', volume: '10 mil', bitributacao: 'sim', decisor: 'eu' })
   const o2 = await tl.runTool(ctxDe(w2), 'passar_para_humano', { motivo: 'qualificacao_concluida', resumo: 'Qualificado.' })
-  eq('passagem comercial não cria card de suporte', [o2.handoff, w2.cards], [true, []])
+  eq('passagem comercial cria card no funil comercial (não no suporte)', [o2.handoff, w2.cards], [true, ['Novos Leads InovPay · Comercial · qualificação concluída']])
   const w3 = mundoCard('cliente')
-  const quebrada = { ...ev.memoryPort(w3), async cardSuporte() { throw new Error('GHL fora') } }
+  const quebrada = { ...ev.memoryPort(w3), async card() { throw new Error('GHL fora') } }
   const o3 = await tl.runTool(ctxDe(w3, quebrada), 'passar_para_humano', { motivo: 'suporte_maquininha', resumo: 'Maquininha não liga.' })
   eq('card falhou: a passagem acontece mesmo assim', [o3.handoff, w3.tags.has('atendimento-humano'), w3.notes.length, (o3.marcas || [])[0]?.startsWith('card: falhou')], [true, true, 1, true])
 
