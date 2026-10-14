@@ -89,6 +89,12 @@ export async function processContact(contactId: string, webhookId: string): Prom
       if (await humanSpokeRecently(conv.raw, Date.now(), conv.corteMs)) return pular('uma pessoa da equipe respondeu nas últimas 6h: a IA não atropela')
 
       const bloco = blocoAtual(conv.msgs)
+      // A mensagem chegou no mesmo instante em que a resposta anterior saía (visto em 14/10/2026):
+      // não há nada do cliente depois da última resposta, então responder de novo só repete a pergunta.
+      if (!bloco.length) {
+        await markAnswered(contactId, target.id)
+        return pular('a mensagem chegou junto com a resposta anterior: nada novo para responder', false)
+      }
       const textoTurno = bloco.map(m => m.text).join('\n')
       if (bloco.length && bloco.every(m => ehAutoResposta(m.text))) {
         await markAnswered(contactId, target.id)
