@@ -52,7 +52,7 @@ export const FORA_DO_HORARIO = {
 
 export const INICIO = [
   { titulo: 'Cliente ou não cliente', texto: 'Cumprimenta e pergunta "Você já é cliente da InovPay?", a não ser que a mensagem já deixe claro (venda na maquininha, estorno ou portal: cliente; quer abrir conta: não cliente).' },
-  { titulo: 'CPF ou CNPJ', texto: 'Pede uma vez, com o aviso da Política de Privacidade, confere se o número é válido e grava no campo CPF/CNPJ do contato. Campo já preenchido: não pede de novo.' },
+  { titulo: 'CNPJ', texto: 'Pede o CNPJ da empresa uma vez, com o aviso da Política de Privacidade, confere se o número é válido e grava no campo CPF/CNPJ do contato. CPF não é aceito: ela explica que o atendimento é pelo CNPJ. Campo já preenchido: não pede de novo.' },
 ]
 
 export interface Assunto { titulo: string; texto: string; motivo: string; base: string[] }
@@ -62,16 +62,16 @@ export const CLIENTE: Assunto[] = [
   { titulo: 'Estorno de venda de hoje', texto: 'Manda o passo a passo para cancelar na própria maquininha e pergunta se deu certo. Se não deu, passa.', motivo: 'estorno', base: ['estorno_passos', 'enc_suporte'] },
   { titulo: 'Cancelamento de dias anteriores', texto: 'Pede a foto legível do comprovante, a data e o valor. Só com os três passa para a equipe.', motivo: 'estorno_anterior', base: ['enc_estorno_anterior'] },
   { titulo: 'Portal ou app', texto: 'Mostra os 5 temas e manda o texto do tema escolhido. Se não resolver, pede a descrição e um print e passa.', motivo: 'portal_app', base: ['portal_split', 'portal_beneficiarios', 'portal_boleto', 'portal_relatorio', 'portal_comprovante', 'enc_suporte'] },
-  { titulo: 'Falar com um atendente', texto: 'Pergunta o assunto em uma linha e passa.', motivo: 'pediu_atendente', base: ['enc_atendente'] },
 ]
 
 export const NAO_CLIENTE = {
-  texto: 'Pede o CNPJ e faz uma pergunta por mensagem, pulando o que a pessoa já contou. Se perguntarem como funciona, explica com o texto da base. Taxa e preço ficam com o comercial.',
+  texto: 'Pede o CNPJ e faz uma pergunta por mensagem, pulando o que a pessoa já contou. Se a empresa não repassa parte do valor, pula as perguntas do repasse. Se perguntarem como funciona, explica com o texto da base. Taxa e preço ficam com o comercial.',
   perguntas: [
-    'Como funciona o negócio e o repasse',
-    'Se o repasse é feito na mão',
-    'Para quantas pessoas repassa',
-    'Volume de vendas por mês',
+    'Tipo de produto ou serviço da empresa',
+    'Se uma parte de cada venda é repassada a outra pessoa ou empresa',
+    'Como o repasse é feito hoje',
+    'Para quantas pessoas ou empresas repassa',
+    'Faturamento mensal aproximado',
     'Se percebe imposto pago duas vezes',
     'Quem decide',
   ],
@@ -79,14 +79,14 @@ export const NAO_CLIENTE = {
   base: ['nao_cliente', 'enc_comercial'],
 }
 
-export const QUALQUER_MOMENTO = 'Pediu para falar com uma pessoa, em qualquer ponto: passa na hora, sem mais perguntas.'
+export const QUALQUER_MOMENTO = 'Pediu para falar com uma pessoa ou um atendente, em qualquer ponto: passa na hora, sem mais perguntas, com o encerramento de "falar com um atendente".'
 
 export const PASSAGEM = [
   'Grava uma nota interna com o motivo, o tipo (cliente ou não), o CPF/CNPJ, o resumo e os dados coletados.',
   'Coloca a tag atendimento-humano.',
   'Tira a tag ia: daqui em diante quem responde é a equipe.',
   'Deixa a conversa como não lida, para aparecer para vocês.',
-  'Abre um card: cliente indo para o suporte vai para o funil Suporte InovPay, em "Entrou no suporte"; não cliente qualificado vai para Novos Leads InovPay, em "Novo Lead". Se o contato já tem um card aberto no funil, usa o mesmo.',
+  'Abre um card: cliente indo para o suporte vai para o funil Suporte InovPay, em "Entrou no suporte"; quem não é cliente (qualificado ou que pediu uma pessoa) vai para Novos Leads InovPay, em "Novo Lead". Se o contato já tem um card aberto no funil, usa o mesmo.',
 ]
 
 /** Travas em código: valem mesmo que o modelo tente o contrário (as de quando ela fica quieta ou passa na hora já estão no fluxo). */

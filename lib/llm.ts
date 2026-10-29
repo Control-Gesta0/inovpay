@@ -5,9 +5,9 @@ import { renderPrompt, trouxeTexto, type ItemId } from './base-core'
 import { CRM_MAP } from './crm-map'
 import { mascarar } from './documento'
 import { addUsage, emptyUsage, type Usage } from './execlog'
-import { checkReply, comAvisoPrivacidade, soUltimaPergunta, type Violation } from './guards'
+import { checkReply, comAvisoPrivacidade, formal, soUltimaPergunta, type Violation } from './guards'
 import type { ChatMsg } from './history'
-import { perguntaEsperada, proximoPasso, respostaDoRoteiro } from './roteiro'
+import { perguntaEsperada, proximoPasso, respostaDoRoteiro, respostasAdiantadas } from './roteiro'
 import { comRespostaDePreco, pediuPessoa, perguntouPreco, respondeuPreco, tipoDoTurno } from './tipo'
 import { buildTools, runTool, type ToolCtx } from './tools'
 
@@ -135,7 +135,7 @@ export function createBrain(opts: LlmOptions) {
           ? 'PRÓXIMO PASSO: escolheu falar com um atendente na lista de assuntos. Peça em uma linha qual é o assunto (seção 4.4) e depois chame passar_para_humano(pediu_atendente).'
           : 'PRÓXIMO PASSO: a pessoa pediu para falar com uma pessoa. Chame passar_para_humano(pediu_humano) AGORA, sem fazer nenhuma pergunta.')
         : proximoPasso(st, !!documento, !!ctx.jaPediuDocumento),
-      perguntouPreco(t.lastLeadText) ? 'ATENÇÃO: a pessoa perguntou de taxa, preço ou condição. COMECE a resposta dizendo, em uma frase, que a equipe passa essas informações certinho (sem número nenhum), anote com anotar(pedido_extra) e só depois faça o próximo passo.' : '',
+      perguntouPreco(t.lastLeadText) ? 'ATENÇÃO: a pessoa perguntou de taxa, preço ou condição. COMECE a resposta dizendo, em uma frase, que a equipe passa essas informações (sem número nenhum), anote com anotar(pedido_extra) e só depois faça o próximo passo.' : '',
       'As ferramentas devolvem o próximo passo atualizado: siga o que elas disserem.',
     ].filter(Boolean)
     if (process.env.DEBUG_CTX) console.log(`[ctx]\n${linhas.join('\n')}`)
@@ -204,6 +204,12 @@ export function createBrain(opts: LlmOptions) {
     const st1 = await ctx.port.getState()
     const resp = !pediuPessoa(t.lastLeadText) && !perguntouPreco(t.lastLeadText) ? respostaDoRoteiro(st1, ctx.ultimaIa, t.lastLeadText) : null
     if (resp) await ctx.port.patchState({ dados: { ...(st1.dados || {}), [resp.campo]: resp.valor } })
+    // a mesma mensagem pode já responder as perguntas seguintes do roteiro comercial
+    if (resp && !pediuPessoa(t.lastLeadText)) {
+      const stR = await ctx.port.getState()
+      const adiantadas = respostasAdiantadas(stR, t.lastLeadText)
+      if (adiantadas.length) await ctx.port.patchState({ dados: { ...(stR.dados || {}), ...Object.fromEntries(adiantadas.map(a => [a.campo, a.valor])) } })
+    }
     // Pergunta de taxa/preço: o CÓDIGO anota o pedido para a nota da equipe (o modelo às vezes esquecia)
     const precoNoTurno = perguntouPreco(t.lastLeadText)
     if (precoNoTurno && !st1.dados?.pedido_extra) {
@@ -250,7 +256,7 @@ export function createBrain(opts: LlmOptions) {
         if (perguntouPreco(t.lastLeadText) && !respondeuPreco(text) && !retries.some(r => r.startsWith('ignorou'))) {
           retries.push('ignorou a pergunta de taxa: nova tentativa')
           messages.push({ role: 'assistant', content: text })
-          messages.push({ role: 'system', content: '[TRAVA DO SISTEMA] Isso NÃO foi enviado: a pessoa perguntou de taxa, preço ou condição e você não respondeu. Comece dizendo, em uma frase e sem número, que a equipe passa essas informações certinho; anote com anotar(pedido_extra); depois siga o PRÓXIMO PASSO. Responda só com o texto do WhatsApp.' })
+          messages.push({ role: 'system', content: '[TRAVA DO SISTEMA] Isso NÃO foi enviado: a pessoa perguntou de taxa, preço ou condição e você não respondeu. Comece dizendo, em uma frase e sem número, que a equipe passa essas informações; anote com anotar(pedido_extra); depois siga o PRÓXIMO PASSO. Responda só com o texto do WhatsApp.' })
           continue
         }
         if (esperada && !esperada.marca.test(text)) {
@@ -267,7 +273,7 @@ export function createBrain(opts: LlmOptions) {
         }
       }
       const safe = await enforce(ctx, messages, text, usage, handoff, textoLead)
-      return { text: comRespostaDePreco(comAvisoPrivacidade(safe.text, !!ctx.jaPediuDocumento), precoNoTurno && !handoff), toolsUsed, handoff, guard: [...retries, ...safe.guard], usage }
+      return { text: formal(comRespostaDePreco(comAvisoPrivacidade(safe.text, !!ctx.jaPediuDocumento), precoNoTurno && !handoff)), toolsUsed, handoff, guard: [...retries, ...safe.guard], usage }
     }
 
     // Ferramentas já mexeram no CRM: nunca deixar a pessoa em silêncio
@@ -275,7 +281,7 @@ export function createBrain(opts: LlmOptions) {
     const text = (final.message?.content || '').trim()
     if (!text) return handoff ? { text: CRM_MAP.textos.seguroFinal, toolsUsed, handoff, guard: ['vazio: texto seguro'], usage } : null
     const safe = await enforce(ctx, messages, text, usage, handoff, textoLead)
-    return { text: comRespostaDePreco(comAvisoPrivacidade(safe.text, !!ctx.jaPediuDocumento), precoNoTurno && !handoff), toolsUsed, handoff, guard: [...retries, ...safe.guard], usage }
+    return { text: formal(comRespostaDePreco(comAvisoPrivacidade(safe.text, !!ctx.jaPediuDocumento), precoNoTurno && !handoff)), toolsUsed, handoff, guard: [...retries, ...safe.guard], usage }
   }
 
   return { generateReply }

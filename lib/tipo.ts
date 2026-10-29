@@ -52,7 +52,7 @@ export const respondeuPreco = (texto: string) =>
   /\b(equipe|time|comercial|especialista|atendente)\b/.test(norm(texto)) && /\b(taxa|taxas|valor|valores|preco|precos|condic|informac|custo)/.test(norm(texto))
 
 /** Frase fixa quando a pessoa pergunta taxa/preço e a resposta não tratou disso. */
-export const FRASE_PRECO = 'As taxas e os valores a nossa equipe passa certinho pra você.'
+export const FRASE_PRECO = 'As taxas e os valores são informados pela nossa equipe.'
 
 /**
  * Perguntou taxa/preço e a resposta não disse que a equipe passa? O código encaixa a frase

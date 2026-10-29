@@ -92,7 +92,7 @@ REGRAS DOS TEXTOS (o sistema recusa o que quebrar estas regras)
 - Sem travessão (— ou –). Sem "espero ter ajudado", "fico à disposição". Sem porcentagem, sem "R$", sem senha, sem "garantido".
 - Encerramentos (ids enc_) não têm pergunta. O aviso de fora do horário mantém {quando} uma vez só.
 - Textos do portal e do app vão para o cliente exatamente como estão: siga o estilo deles (emojis no começo da linha, setas ➝).
-- Escreva como a equipe da InovPay: simpático e direto, frases curtas.
+- Escreva como a equipe da InovPay: cordial, claro e profissional, frases curtas, português correto ("para", nunca "pra"; "em uma", nunca "numa").
 
 CORREÇÃO DE UMA RESPOSTA (do laboratório de teste ou de uma conversa real no WhatsApp)
 Conversas reais vêm com CPF, CNPJ, telefone e e-mail mascarados ([cpf], [telefone]...): nunca copie esses dados para a base.

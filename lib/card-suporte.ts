@@ -18,21 +18,25 @@ export const MOTIVOS_SUPORTE = ['suporte_maquininha', 'estorno', 'estorno_anteri
 
 export type QualFunil = 'suporte' | 'comercial'
 
-/** Cliente indo para o suporte → suporte ("pediu uma pessoa" só se já sabemos que é cliente). Não cliente qualificado → comercial. "Outro" não ganha card. */
+/** Cliente indo para o suporte → suporte. Não cliente qualificado, ou que pediu uma pessoa no meio → comercial (pedido da InovPay, 23/10/2026). Tipo desconhecido e "outro" não ganham card. */
 export function qualFunil(motivo: string, tipo?: string): QualFunil | null {
   if ((MOTIVOS_SUPORTE as readonly string[]).includes(motivo) || (motivo === 'pediu_humano' && tipo === 'cliente')) return 'suporte'
-  if (motivo === 'qualificacao_concluida') return 'comercial'
+  if (motivo === 'qualificacao_concluida' || (motivo === 'pediu_humano' && tipo === 'nao_cliente')) return 'comercial'
   return null
 }
 export const precisaCard = (motivo: string, tipo?: string) => qualFunil(motivo, tipo) === 'suporte'
 
-export interface CardAberto { id: string; pipelineStageId: string }
+export interface CardAberto { id: string; pipelineStageId: string; criadoEm?: number }
 
 export type Decisao = { acao: 'criar' } | { acao: 'reaproveitar'; id: string } | { acao: 'travar'; n: number }
 
-/** Puro (testado): cards abertos do contato no funil → o que fazer. Card em "Finalizado" é chamado antigo. */
-export function decidirCard(abertos: CardAberto[], etapaFinalId: string): Decisao {
-  const vivos = abertos.filter(c => c.pipelineStageId !== etapaFinalId)
+/**
+ * Puro (testado): cards abertos do contato no funil → o que fazer. Card em "Finalizado" é chamado antigo.
+ * `corteMs` (o reset dos números de teste): card criado antes do reset também é antigo, senão o
+ * teste seguinte reaproveitava o card do teste anterior e parecia que nenhum chamado abria.
+ */
+export function decidirCard(abertos: CardAberto[], etapaFinalId: string, corteMs = 0): Decisao {
+  const vivos = abertos.filter(c => c.pipelineStageId !== etapaFinalId && !(corteMs && c.criadoEm && c.criadoEm < corteMs))
   if (!vivos.length) return { acao: 'criar' }
   if (vivos.length === 1) return { acao: 'reaproveitar', id: vivos[0].id }
   return { acao: 'travar', n: vivos.length }
@@ -70,9 +74,9 @@ export async function lerFunil(qual: QualFunil = 'suporte'): Promise<Funil | nul
 
 async function abertosDoContato(funil: Funil, contactId: string): Promise<CardAberto[]> {
   const q = new URLSearchParams({ location_id: CONFIG.ghlLocationId, pipeline_id: funil.pipelineId, contact_id: contactId, status: 'open', limit: '20' })
-  const r = await ghl<{ opportunities?: Array<{ id: string; pipelineStageId: string; contactId?: string; contact?: { id?: string } }> }>('GET', `/opportunities/search?${q}`)
+  const r = await ghl<{ opportunities?: Array<{ id: string; pipelineStageId: string; createdAt?: string; contactId?: string; contact?: { id?: string } }> }>('GET', `/opportunities/search?${q}`)
   // o filtro do GHL por contato já falhou em outras contas: confere de novo aqui
-  return (r.opportunities || []).filter(o => (o.contactId || o.contact?.id) === contactId).map(o => ({ id: o.id, pipelineStageId: o.pipelineStageId }))
+  return (r.opportunities || []).filter(o => (o.contactId || o.contact?.id) === contactId).map(o => ({ id: o.id, pipelineStageId: o.pipelineStageId, criadoEm: Date.parse(o.createdAt || '') || 0 }))
 }
 
 /** Garante o card e devolve o que aconteceu (vai para o diário). Nunca derruba a passagem. */
@@ -82,7 +86,8 @@ export async function garantirCard(qual: QualFunil, contactId: string, contato: 
   // trava curta: duas mensagens seguidas não podem criar dois cards
   if (!(await redis.set(k('card', qual, contactId), '1', { nx: true, ex: 60 }))) return 'card: outra execução já está cuidando'
   try {
-    const d = decidirCard(await abertosDoContato(funil, contactId), funil.finalId)
+    const corteMs = Number(await redis.get<string>(k('corte', contactId))) || 0
+    const d = decidirCard(await abertosDoContato(funil, contactId), funil.finalId, corteMs)
     if (d.acao === 'reaproveitar') return `card: reaproveitado o que já estava aberto (${d.id})`
     if (d.acao === 'travar') return `card: NÃO criado, o contato já tem ${d.n} cards abertos em "${CFG[qual].nome}" (conferir duplicados)`
     try {
@@ -95,7 +100,7 @@ export async function garantirCard(qual: QualFunil, contactId: string, contato: 
     } catch (e) {
       // POST não se repete às cegas: relê o CRM antes de concluir que falhou
       const depois = await abertosDoContato(funil, contactId).catch(() => [])
-      if (depois.some(c => c.pipelineStageId !== funil.finalId)) return 'card: criado (confirmado relendo o CRM)'
+      if (decidirCard(depois, funil.finalId, corteMs).acao !== 'criar') return 'card: criado (confirmado relendo o CRM)'
       throw e
     }
   } finally {

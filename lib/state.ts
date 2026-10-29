@@ -17,6 +17,7 @@ export const CAMPOS_ANOTACAO = [
   'valor_venda',
   'comprovante',
   'tema_portal',
+  'segmento',
   'repasse',
   'forma_repasse',
   'recebedores',

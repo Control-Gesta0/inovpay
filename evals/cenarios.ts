@@ -104,11 +104,11 @@ export function cenarios(tx: Textos): Cenario[] {
       msgs: ['minha maquininha tá dando erro desde ontem'],
       checks: [
         { nome: 'registrou que é cliente', fn: w => w.state.tipo === 'cliente' },
-        { nome: 'pediu o CPF ou CNPJ (não estava no cadastro)', fn: (_w, t) => /cpf|cnpj/i.test(t[0]?.resposta || '') },
+        { nome: 'pediu o CNPJ, não o CPF (não estava no cadastro)', fn: (_w, t) => /cnpj/i.test(t[0]?.resposta || '') && !/cpf/i.test(t[0]?.resposta || '') },
       ],
       criterios: [
         'A IA não perguntou se a pessoa é cliente nem pediu para escolher número de menu: entendeu pelo texto.',
-        'A IA pediu o CPF ou CNPJ cadastrado e citou o uso dos dados só para este atendimento (Política de Privacidade).',
+        'A IA pediu o CNPJ da empresa (nunca o CPF) e citou o uso dos dados apenas para este atendimento (Política de Privacidade).',
       ],
     },
     {
@@ -127,7 +127,8 @@ export function cenarios(tx: Textos): Cenario[] {
       ],
       checks: [
         { nome: 'gravou o CNPJ', fn: w => w.documento === CNPJ_OK },
-        { nome: 'anotou as respostas', fn: w => ['repasse', 'forma_repasse', 'recebedores', 'volume_mensal', 'bitributacao', 'decisor'].filter(k => (w.state.dados as Record<string, string> | undefined)?.[k]).length >= 5 },
+        { nome: 'anotou as respostas', fn: w => ['segmento', 'repasse', 'forma_repasse', 'recebedores', 'volume_mensal', 'bitributacao', 'decisor'].filter(k => (w.state.dados as Record<string, string> | undefined)?.[k]).length >= 6 },
+        { nome: 'escrita formal (sem "pra" nem "numa")', fn: (_w, t) => t.every(x => !/(?<![\p{L}])(pra|pras|numa|num)(?![\p{L}])/iu.test(x.resposta || '')) },
         { nome: 'passou para o comercial no fim', fn: w => passou(w) && /qualifica/i.test(w.notes[0] || '') },
         { nome: 'encerrou com o texto da base (comercial)', fn: (_w, t) => trouxeTexto(ultima(t), tx.enc_comercial) },
         { nome: 'uma pergunta por mensagem', fn: (_w, t) => umaPergunta(t) },
@@ -165,8 +166,8 @@ export function cenarios(tx: Textos): Cenario[] {
         { nome: 'não passou para a equipe', fn: w => naoPassou(w) },
       ],
       criterios: [
-        'A IA disse que a equipe passa as taxas certinho, sem inventar número.',
-        'A IA seguiu com uma pergunta do roteiro (como funciona o negócio ou o repasse).',
+        'A IA disse que a equipe passa as taxas, sem inventar número.',
+        'A IA seguiu com uma pergunta do roteiro (tipo de produto ou serviço da empresa, ou o repasse).',
       ],
     },
     {
@@ -204,9 +205,9 @@ export function cenarios(tx: Textos): Cenario[] {
       msgs: ['meu split não caiu', CPF_RUIM],
       checks: [
         { nome: 'não gravou documento inválido', fn: w => !w.documento },
-        { nome: 'pediu de novo', fn: (_w, t) => /cpf|cnpj/i.test(ultima(t)) },
+        { nome: 'pediu o CNPJ', fn: (_w, t) => /cnpj/i.test(ultima(t)) },
       ],
-      criterios: ['Quando o CPF veio inválido, a IA pediu para conferir e mandar de novo, com educação.'],
+      criterios: ['Quando a pessoa mandou um CPF, a IA explicou com educação que o atendimento é pelo CNPJ da empresa e pediu o CNPJ.'],
     },
     {
       id: 'documento-no-cadastro-nao-pergunta',

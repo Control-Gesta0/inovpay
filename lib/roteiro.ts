@@ -5,15 +5,29 @@ import type { Estado } from './state'
  * O modelo escolhe as palavras; a ORDEM do roteiro sai daqui (puro, testado).
  */
 
-/** As seis perguntas da IA antiga do GHL, na mesma ordem. */
+/**
+ * Perguntas do roteiro comercial, nesta ordem (revisadas com a InovPay em 23/10/2026: tipo de
+ * produto ou serviço, recebimento perguntado de forma mais clara e faturamento).
+ * `seRepasse`: só faz sentido se a empresa repassa parte do valor; com "não" na pergunta do
+ * repasse, o código pula essas.
+ */
 export const PERGUNTAS_COMERCIAL = [
-  { campo: 'repasse', marca: /repass/i, texto: 'Me conta como funciona o seu negócio hoje: vocês recebem pagamentos e depois repassam parte desse valor para outras pessoas ou empresas, tipo fornecedores, parceiros ou prestadores?' },
-  { campo: 'forma_repasse', marca: /na m[aã]o|algum sistema/i, texto: 'E hoje esse repasse é feito na mão, tipo Pix ou transferência um a um, ou vocês usam algum sistema?' },
-  { campo: 'recebedores', marca: /quant[ao]s (pessoas|empresas|recebedores|parceiros|profissionais)/i, texto: 'Normalmente, numa venda, quantas pessoas ou empresas diferentes recebem parte do valor, mais ou menos?' },
-  { campo: 'volume_mensal', marca: /volume|faturamento|por m[eê]s/i, texto: 'E qual o volume aproximado de vendas por mês, em valor ou em quantidade?' },
-  { campo: 'bitributacao', marca: /imposto/i, texto: 'Vocês já perceberam se acabam pagando imposto duas vezes sobre o valor que repassam, ou nunca chegaram a calcular isso?' },
-  { campo: 'decisor', marca: /decis[aã]o|decide/i, texto: 'E a decisão sobre isso é sua ou tem mais alguém envolvido?' },
-] as const
+  { campo: 'segmento', marca: /produto ou servi[cç]o|segmento|ramo/i, texto: 'Qual é o tipo de produto ou serviço que a sua empresa oferece?' },
+  { campo: 'repasse', marca: /repass/i, resposta: /\brepass|\bdivid[oi]|comiss[aã]o/i, texto: 'Quando a sua empresa recebe por uma venda, uma parte desse valor precisa ser repassada para outra pessoa ou empresa, como um parceiro, fornecedor ou profissional?' },
+  { campo: 'forma_repasse', seRepasse: true, marca: /manualmente|na m[aã]o|algum sistema/i, resposta: /\bpix\b|transfer[eê]ncia|na m[aã]o|manualmente|planilha/i, texto: 'E como esse repasse é feito hoje: manualmente, por Pix ou transferência, ou por algum sistema?' },
+  { campo: 'recebedores', seRepasse: true, marca: /quant[ao]s (pessoas|empresas|recebedores|parceiros|profissionais)/i, resposta: /\b\d+\s*(pessoas|profissionais|parceir[oa]s|fornecedores|empresas|m[eé]dic[oa]s|vendedor[ea]s)/i, texto: 'Em média, quantas pessoas ou empresas recebem uma parte do valor de cada venda?' },
+  { campo: 'volume_mensal', marca: /faturamento|volume|por m[eê]s/i, resposta: /\b\d+([.,]\d+)?\s*(mil|k|milh[aãõ])|r\$\s*\d/i, texto: 'Qual é o faturamento mensal aproximado da empresa?' },
+  { campo: 'bitributacao', seRepasse: true, marca: /imposto/i, texto: 'Vocês já perceberam se pagam imposto duas vezes sobre o valor que repassam, ou ainda não chegaram a calcular isso?' },
+  { campo: 'decisor', marca: /decis[aã]o|decide/i, texto: 'A decisão sobre isso é sua ou envolve mais alguém?' },
+] as const satisfies ReadonlyArray<{ campo: string; marca: RegExp; texto: string; seRepasse?: boolean; resposta?: RegExp }>
+
+type PerguntaComercial = typeof PERGUNTAS_COMERCIAL[number]
+
+/** Próxima pergunta comercial que falta (pula as do repasse quando a empresa não repassa). Puro. */
+export function faltaComercial(st: Estado): PerguntaComercial | undefined {
+  const semRepasse = ehNao(st.dados?.repasse)
+  return PERGUNTAS_COMERCIAL.find(p => !st.dados?.[p.campo] && !('seRepasse' in p && semRepasse))
+}
 
 export function proximoPasso(st: Estado, temDocumento: boolean, jaPediuDocumento: boolean): string {
   if (st.finalizado) return 'Atendimento já passado para a equipe: escreva só a mensagem final.'
@@ -21,17 +35,17 @@ export function proximoPasso(st: Estado, temDocumento: boolean, jaPediuDocumento
     return 'PRÓXIMO PASSO: descobrir se é cliente. Pergunte "Você já é cliente da InovPay?" (pode responder antes, em uma frase, o que ela perguntou, se estiver no documento). Só chame definir_tipo depois que ela responder.'
   }
   if (st.tipo === 'cliente') {
-    if (!temDocumento) return 'PRÓXIMO PASSO: pedir o CPF ou CNPJ cadastrado (seção 4.1) ANTES de qualquer roteiro, com a frase da Política de Privacidade. Se a pessoa já contou o problema, diga em poucas palavras que já vai ajudar com isso e peça o documento.'
+    if (!temDocumento) return 'PRÓXIMO PASSO: pedir o CNPJ da empresa cadastrada (seção 4.1) ANTES de qualquer roteiro, com a frase da Política de Privacidade. Se a pessoa já contou o problema, diga em poucas palavras que já vai ajudar com isso e peça o documento.'
     const faltaCancelamento = faltandoCancelamento(st)
     if (ehNao(st.dados?.venda_de_hoje) && !faltaCancelamento.length) return 'PRÓXIMO PASSO: comprovante, data e valor já anotados. Chame passar_para_humano(estorno_anterior) agora e use o encerramento que a ferramenta devolver.'
     if (st.dados?.estado_maquininha && st.dados?.descricao) return 'PRÓXIMO PASSO: a descrição da maquininha já está anotada. Chame passar_para_humano(suporte_maquininha) agora e use o encerramento que a ferramenta devolver.'
-    if (ehNao(st.dados?.venda_de_hoje) && faltaCancelamento.length) return `PRÓXIMO PASSO: cancelamento de venda de dias anteriores. Ainda falta: ${faltaCancelamento.join(' e ')}. Peça o que falta numa mensagem só (não pergunte de novo o que já veio).`
-    return 'PRÓXIMO PASSO: seguir o roteiro do assunto da seção 4.3 (se o assunto ainda não foi dito, pergunte qual é). Estorno: se a pessoa já disse quando foi a venda ("hoje", "ontem", "semana passada", uma data), anote venda_de_hoje e NÃO pergunte se foi hoje. Venda de dias anteriores: peça numa mensagem só a foto legível do comprovante, a data e o valor.'
+    if (ehNao(st.dados?.venda_de_hoje) && faltaCancelamento.length) return `PRÓXIMO PASSO: cancelamento de venda de dias anteriores. Ainda falta: ${faltaCancelamento.join(' e ')}. Peça o que falta em uma mensagem só (não pergunte de novo o que já veio).`
+    return 'PRÓXIMO PASSO: seguir o roteiro do assunto da seção 4.3 (se o assunto ainda não foi dito, pergunte qual é). Estorno: se a pessoa já disse quando foi a venda ("hoje", "ontem", "semana passada", uma data), anote venda_de_hoje e NÃO pergunte se foi hoje. Venda de dias anteriores: peça em uma mensagem só a foto legível do comprovante, a data e o valor.'
   }
   if (!temDocumento && !jaPediuDocumento) return 'PRÓXIMO PASSO: pedir o CNPJ da empresa (seção 5.1), com a frase da Política de Privacidade.'
-  const falta = PERGUNTAS_COMERCIAL.find(p => !st.dados?.[p.campo])
+  const falta = faltaComercial(st)
   if (falta) return `PRÓXIMO PASSO: fazer a pergunta "${falta.campo}" do roteiro comercial, com estas palavras ou parecidas: "${falta.texto}" (se a pessoa já respondeu isso na conversa, anote e vá para a seguinte).`
-  return 'PRÓXIMO PASSO: as seis respostas estão anotadas. Chame passar_para_humano(qualificacao_concluida) e encerre (seção 5.3).'
+  return 'PRÓXIMO PASSO: as respostas do roteiro estão anotadas. Chame passar_para_humano(qualificacao_concluida) e encerre (seção 5.3).'
 }
 
 /** Encerramento de cada passagem (texto do documento do cliente). null = o modelo escreve. */
@@ -53,7 +67,7 @@ export function faltaParaPassar(motivo: string, st: Estado): string | null {
   if (motivo === 'suporte_maquininha' && !st.dados?.descricao) return 'Antes de passar, peça em poucas palavras o que está acontecendo com a maquininha e uma foto ou vídeo do problema (passo 2 do roteiro), e anote com anotar(descricao).'
   if (motivo === 'estorno_anterior') {
     const falta = faltandoCancelamento(st)
-    if (falta.length) return `Antes de passar, ainda falta: ${falta.join(' e ')}. Peça o que falta numa mensagem só e anote.`
+    if (falta.length) return `Antes de passar, ainda falta: ${falta.join(' e ')}. Peça o que falta em uma mensagem só e anote.`
   }
   if (motivo === 'portal_app' && !st.dados?.descricao) return 'Antes de passar, peça a pessoa descrever o que aconteceu (e um print, sem senha) e anote com anotar(descricao).'
   return null
@@ -79,16 +93,35 @@ export function respostaDoRoteiro(st: Estado, ultimaIa: string, textoTurno: stri
   }
   if (st.tipo !== 'nao_cliente' || !textoTurno.trim() || !ultimaIa.includes('?')) return null
   const pergunta = ultimaIa.slice(Math.max(0, ultimaIa.lastIndexOf('?') - 220))
-  const falta = PERGUNTAS_COMERCIAL.find(p => !st.dados?.[p.campo])
+  const falta = faltaComercial(st)
   if (!falta || !falta.marca.test(pergunta)) return null
   return { campo: falta.campo, valor: textoTurno.trim().slice(0, 300) }
 }
 
+/**
+ * Respostas que vieram ADIANTADAS na mesma mensagem ("tenho uma clínica e repasso para as
+ * profissionais" responde o segmento E o repasse): o código anota as perguntas seguintes cujo
+ * sinal aparece no texto, na ordem, até a primeira que não aparece. Sem isso a trava obrigava a
+ * repetir a pergunta e as respostas seguintes ficavam desalinhadas (exame de 23/10/2026). Puro.
+ */
+export function respostasAdiantadas(st: Estado, textoTurno: string): Array<{ campo: string; valor: string }> {
+  if (st.tipo !== 'nao_cliente' || !textoTurno.trim()) return []
+  const out: Array<{ campo: string; valor: string }> = []
+  let atual: Estado = st
+  for (;;) {
+    const p = faltaComercial(atual)
+    if (!p || !('resposta' in p) || !p.resposta.test(textoTurno)) break
+    out.push({ campo: p.campo, valor: textoTurno.trim().slice(0, 300) })
+    atual = { ...atual, dados: { ...(atual.dados || {}), [p.campo]: textoTurno.trim().slice(0, 300) } }
+  }
+  return out
+}
+
 /** Pergunta do roteiro comercial que a próxima mensagem TEM que trazer (null = não se aplica agora). */
-export function perguntaEsperada(st: Estado, temDocumento: boolean, jaPediuDocumento: boolean): typeof PERGUNTAS_COMERCIAL[number] | null {
+export function perguntaEsperada(st: Estado, temDocumento: boolean, jaPediuDocumento: boolean): PerguntaComercial | null {
   if (st.tipo !== 'nao_cliente' || st.finalizado) return null
   if (!temDocumento && !jaPediuDocumento) return null
-  return PERGUNTAS_COMERCIAL.find(p => !st.dados?.[p.campo]) || null
+  return faltaComercial(st) || null
 }
 
 const CAMPOS_COMERCIAIS: string[] = PERGUNTAS_COMERCIAL.map(p => p.campo)

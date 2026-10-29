@@ -24,8 +24,8 @@ export const ITENS = [
   { id: 'nao_cliente', grupo: 'comercial', titulo: 'O que ela pode explicar para quem não é cliente', ajuda: 'A assistente usa só isto, com as palavras dela e em poucas frases, quando um não cliente pergunta como funciona. Taxa e preço nunca entram aqui.' },
   { id: 'enc_suporte', grupo: 'encerramentos', titulo: 'Encerramento do suporte', ajuda: 'Quando passa para a equipe: problema na maquininha, estorno de hoje que não deu certo e dúvida do portal que precisa de ajuda.' },
   { id: 'enc_estorno_anterior', grupo: 'encerramentos', titulo: 'Encerramento do cancelamento de dias anteriores', ajuda: 'Quando o cliente mandou comprovante, data e valor de uma venda antiga.' },
-  { id: 'enc_atendente', grupo: 'encerramentos', titulo: 'Encerramento de "falar com um atendente"', ajuda: 'Quando o cliente escolhe falar com um atendente e diz o assunto.' },
-  { id: 'enc_comercial', grupo: 'encerramentos', titulo: 'Encerramento do comercial', ajuda: 'Quando quem ainda não é cliente termina as seis perguntas e vai para o time comercial.' },
+  { id: 'enc_atendente', grupo: 'encerramentos', titulo: 'Encerramento de "falar com um atendente"', ajuda: 'Quando a pessoa pede para falar com um atendente, em qualquer momento da conversa.' },
+  { id: 'enc_comercial', grupo: 'encerramentos', titulo: 'Encerramento do comercial', ajuda: 'Quando quem ainda não é cliente termina as perguntas e vai para o time comercial.' },
   { id: 'aviso_fora', grupo: 'horario', titulo: 'Aviso de fora do horário', ajuda: 'Enviado uma vez por período fechado, antes da triagem. {quando} vira "amanhã a partir das 9h", "na segunda-feira a partir das 9h" e assim por diante.', exige: '{quando}' },
 ] as const
 
@@ -52,8 +52,8 @@ const meta = (id: ItemId) => ITENS.find(i => i.id === id)!
 export const PADRAO_CODIGO: Partial<Textos> = {
   enc_suporte: 'Obrigado pelas informações! Seu atendimento foi registrado e vai para um dos nossos especialistas. Você não vai precisar repetir o que já mandou.',
   enc_estorno_anterior: 'Obrigado pelo envio! Recebemos sua solicitação de cancelamento e ela vai para análise. Se for aprovada, a carta ou o comprovante de cancelamento fica disponível em até 48 horas úteis. Acompanhe o atendimento por aqui.',
-  enc_atendente: 'Obrigado! Você está na fila de atendimento e um dos nossos atendentes continua por aqui mesmo.',
-  enc_comercial: 'Obrigado pelas informações! Vou passar seu contato e um resumo da sua operação para o nosso time comercial, que vai olhar o seu caso e te mostrar como o split funcionaria pra você.',
+  enc_atendente: 'Obrigado! Já encaminhei o seu atendimento, com o resumo da nossa conversa, para um dos nossos atendentes.',
+  enc_comercial: 'Obrigado pelas informações! Vou passar seu contato e um resumo da sua operação para o nosso time comercial, que vai olhar o seu caso e te mostrar como o split funcionaria para você.',
   aviso_fora: 'Olá! Obrigado por entrar em contato com a InovPay. No momento estamos fora do nosso horário de atendimento, que é de segunda a sexta, das 9h às 18h. Já vou adiantando seu atendimento por aqui e a nossa equipe continua {quando}.',
 }
 
@@ -65,7 +65,8 @@ export const ENCERRAMENTO_POR_MOTIVO: Record<string, ItemId | null> = {
   estorno_anterior: 'enc_estorno_anterior',
   pediu_atendente: 'enc_atendente',
   qualificacao_concluida: 'enc_comercial',
-  pediu_humano: null,
+  // pediu uma pessoa: mesmo encerramento do atendente (o texto livre saía informal demais, 23/10/2026)
+  pediu_humano: 'enc_atendente',
   outro: null,
 }
 

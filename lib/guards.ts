@@ -121,7 +121,7 @@ export function mascararPII(texto: string): string {
 }
 
 /** Frase do aviso de privacidade (LGPD) que acompanha o primeiro pedido de CPF/CNPJ. */
-export const AVISO_PRIVACIDADE = 'Ele é usado só pra este atendimento, conforme a nossa Política de Privacidade.'
+export const AVISO_PRIVACIDADE = 'Ele é usado apenas para este atendimento, conforme a nossa Política de Privacidade.'
 
 /**
  * Pediu o CPF/CNPJ pela primeira vez sem o aviso? O código acrescenta (decisão da InovPay:
@@ -131,4 +131,20 @@ export function comAvisoPrivacidade(texto: string, jaPediuDocumento: boolean): s
   if (jaPediuDocumento || /privacidade/i.test(texto)) return texto
   const pede = /\b(me passa|me manda|manda|informe|informa|envie|qual [eé]|preciso d[oe])\b[^.?!\n]{0,60}\b(cpf|cnpj)\b/i.test(texto)
   return pede ? `${texto.trim()} ${AVISO_PRIVACIDADE}` : texto
+}
+
+/**
+ * Escrita mais formal em código (pedido da InovPay, 23/10/2026): "pra", "numa" e "num" soavam
+ * informais ("pro" fica de fora: pode ser nome de produto). O prompt já pede; aqui garante, inclusive nos textos da base. Puro.
+ */
+const palavra = (p: string) => new RegExp(`(?<![\\p{L}\\d])${p}(?![\\p{L}\\d])`, 'giu')
+const FORMAL: Array<[RegExp, string]> = [
+  [palavra('pras'), 'para as'], [palavra('pra'), 'para'],
+  [palavra('numas'), 'em umas'], [palavra('numa'), 'em uma'], [palavra('num'), 'em um'],
+]
+export function formal(texto: string): string {
+  let t = texto
+  // mantém a maiúscula do começo de frase ("Pra eu" → "Para eu")
+  for (const [re, por] of FORMAL) t = t.replace(re, m => (m[0] === m[0].toUpperCase() ? por[0].toUpperCase() + por.slice(1) : por))
+  return t
 }

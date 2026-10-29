@@ -56,10 +56,11 @@ const ROTULO_CAMPO: Record<CampoAnotacao, string> = {
   valor_venda: 'Valor da venda',
   comprovante: 'Comprovante',
   tema_portal: 'Tema (portal/app)',
-  repasse: 'Recebe e repassa valores?',
+  segmento: 'Produto ou serviço',
+  repasse: 'Repassa parte do valor?',
   forma_repasse: 'Como repassa hoje',
   recebedores: 'Recebedores por venda',
-  volume_mensal: 'Volume mensal',
+  volume_mensal: 'Faturamento mensal',
   bitributacao: 'Percebe imposto em dobro?',
   decisor: 'Quem decide',
   pedido_extra: 'Pediu também',
@@ -79,7 +80,7 @@ export function buildTools(): OpenAI.Chat.ChatCompletionTool[] {
       type: 'function',
       function: {
         name: 'gravar_documento',
-        description: 'Grava o CPF ou CNPJ que a pessoa informou no cadastro. O sistema valida: se voltar inválido, peça de novo.',
+        description: 'Grava o CNPJ que a pessoa informou no cadastro (CPF não é aceito: a InovPay atende só empresas). O sistema valida: se voltar inválido, peça de novo.',
         parameters: { type: 'object', properties: { documento: { type: 'string', description: 'exatamente como a pessoa escreveu' } }, required: ['documento'] },
       },
     },
@@ -148,7 +149,9 @@ export async function runTool(ctx: ToolCtx, name: string, input: Record<string, 
 
     if (name === 'gravar_documento') {
       const doc = validarDocumento(String(input.documento || ''))
-      if (!doc) return { content: 'INVÁLIDO: os números não formam um CPF nem um CNPJ válido (pode ser um dígito trocado). Não gravei. Diga que o número não bateu e PEÇA PARA CONFERIR E MANDAR DE NOVO, por exemplo: "Hmm, esse número não bateu aqui. Confere pra mim e me manda de novo o CPF ou CNPJ cadastrado?". Não diga que o problema é ponto ou traço.', isError: true }
+      if (!doc) return { content: 'INVÁLIDO: os números não formam um CNPJ válido (pode ser um dígito trocado). Não gravei. Diga que o número não bateu e PEÇA PARA CONFERIR E MANDAR DE NOVO, por exemplo: "Esse número não bateu aqui. Pode conferir e me enviar de novo o CNPJ da empresa?". Não diga que o problema é ponto ou traço.', isError: true }
+      // A InovPay só opera com empresa (decisão de 23/10/2026): CPF não entra, pede o CNPJ
+      if (doc.tipo === 'cpf') return { content: 'NÃO gravei: isso é um CPF e a InovPay atende só empresas. Peça, com educação, o CNPJ da empresa, por exemplo: "Aqui nós atendemos com o CNPJ da empresa. Pode me enviar o CNPJ, por favor?".', isError: true }
       await ctx.port.gravarDocumento(doc.formatado)
       return { content: `ok: ${doc.tipo.toUpperCase()} ${mascarar(doc.valor)} gravado no cadastro. ${proximoPasso(st, true, true)}` }
     }
@@ -188,9 +191,9 @@ export async function runTool(ctx: ToolCtx, name: string, input: Record<string, 
       await ctx.port.patchState({ finalizado: { motivo, resumo: resumo.slice(0, 500), em: new Date().toISOString() } })
       const quando = ctx.foraDoHorario
         ? `Agora está FORA do horário: acrescente que a equipe continua ${ctx.quandoVolta}. Não prometa resposta imediata.`
-        : 'Está dentro do horário: pode acrescentar que alguém da equipe continua por aqui em breve.'
+        : 'Está dentro do horário: pode acrescentar que a nossa equipe dará continuidade ao atendimento por aqui em breve.'
       const texto = encerramento(motivo, ctx.textos || {})
-      const como = texto ? `Use EXATAMENTE este encerramento (pode juntar no começo uma frase curta respondendo o que a pessoa acabou de dizer): "${texto}"` : 'Escreva um encerramento curto e simpático, sem pergunta.'
+      const como = texto ? `Use EXATAMENTE este encerramento (pode juntar no começo uma frase curta respondendo o que a pessoa acabou de dizer): "${texto}"` : 'Escreva um encerramento curto, cordial e formal, sem pergunta.'
       return { content: `ok: passado para a equipe (nota criada, IA desligada neste contato). ${como} ${quando}`, handoff: true, marcas }
     }
 

@@ -34,7 +34,7 @@ export const CRM_MAP = {
     // o aviso de fora do horário e os encerramentos moram na Base de dados (lib/base-core.ts)
     reset: 'Reset feito. A conversa começa do zero na próxima mensagem.',
     /** a trava barrou duas vezes: sai um texto neutro em vez de algo errado */
-    seguro: 'Entendi! Me conta um pouquinho mais, por favor, pra eu te ajudar certinho.',
+    seguro: 'Entendi! Pode me contar um pouco mais, por favor, para eu te ajudar da melhor forma?',
     seguroFinal: 'Obrigado pelas informações! Seu atendimento foi registrado e vai para a nossa equipe, que continua por aqui mesmo.',
   },
 }
